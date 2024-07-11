@@ -15,6 +15,10 @@
 using namespace gtsam;
 using namespace std;
 
+using symbol_shorthand::B;  // Bias  (ax,ay,az,gx,gy,gz)
+using symbol_shorthand::V;  // Vel   (xdot,ydot,zdot)
+using symbol_shorthand::X;  // Pose3 (x,y,z,r,p,y)
+
 class GraphHandle{
     public:
         GraphHandle();
@@ -27,9 +31,18 @@ class GraphHandle{
         void initializePlanarVelocity(Vector2 v);
 
     private:
+        // Factor graph class
+        NonlinearFactorGraph* graph;    
+        Values initial_values; // Keep track of initial values for optimization
+
+        int state_count; // Counts the number of states
+
+        void initializeFactorGraph();
+
+        // Init stuff
         bool init;
         void updateInit();
-
+    
         bool rp_init=false; // Rool pitch from IMU
         bool y_init=true; // Yaw (NOT IMPLEMENTED)
         bool xy_init=false; // XY from GPS
