@@ -1,22 +1,38 @@
-#include "graph.h"
+#ifndef IMU_H
+#define IMU_H
+
+#include <gtsam/base/Vector.h>
+#include <gtsam/navigation/CombinedImuFactor.h>
+#include <gtsam/navigation/ImuFactor.h>
+
 #include "sensor_msgs/Imu.h"
 
 using namespace std;
+using namespace gtsam;
 
-#define IMU_DEBUG (false)
+boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams();
+
+
+Vector3 getAcc(sensor_msgs::Imu::ConstPtr msg);
+Vector3 getRate(sensor_msgs::Imu::ConstPtr msg);
+
 
 class IMUHandle{
     public:
         // Constructor
-        IMUHandle(GraphHandle* p_gh);
+        IMUHandle();
 
-        // Commen entry point for new imu messages
-        void newMsg(sensor_msgs::Imu::ConstPtr msg);
+        // Initialize orientation from accelerometer measurement
+        Rot3 getOrientation(sensor_msgs::Imu::ConstPtr msg);
 
     private:
-        GraphHandle* p_gh;
-        Unit3 gravity;
+        Vector3 gravity_;
 
-        void integrateMeasurement(sensor_msgs::Imu::ConstPtr msg);
-        void initializeOrientation(sensor_msgs::Imu::ConstPtr msg);
+        double ts_prev; // Track IMU timestamps for preintegration
+        Vector3 acc_prev;
+        Vector3 rate_prev;
+
+        shared_ptr<PreintegrationType> preintegrated;
 };
+
+#endif

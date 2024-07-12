@@ -11,6 +11,9 @@
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/slam/BetweenFactor.h>
 
+#include "gtsam_nav/gnss.h"
+#include "gtsam_nav/imu.h"
+
 
 using namespace gtsam;
 using namespace std;
@@ -21,23 +24,50 @@ using symbol_shorthand::X;  // Pose3 (x,y,z,r,p,y)
 
 class GraphHandle{
     public:
+        // Constructor
         GraphHandle();
 
-        // Get/Set functionality
-        bool isInit();
+        // Sensor specific entry points
+        void newImuMsg(sensor_msgs::Imu::ConstPtr msg);
+        void newGNSSMsg(sensor_msgs::NavSatFix::ConstPtr msg);
 
-        void initializePlanarPosition(Vector2 p);
-        void initializeOrientation(Rot3 q0);
-        void initializePlanarVelocity(Vector2 v);
+        // Get/set
+        int getStateCount(){return state_count;};
 
     private:
+        // Sensor handlers
+        IMUHandle imu_handle;
+        GNSSHandle gnss_handle;
+
+        // Init stuff
+        void initializePlanarPosition(Vector2 p, double ts);
+        void initializeOrientation(Rot3 q0, double ts);
+        void initializePlanarVelocity(Vector2 v, double ts);
+
+        void newCorrection(double ts);
+
+        // Gnss stuff
+        Vector2 prev_xy_gnss;
+        double prev_ts_gnss;
+
+        // State stuff
+
+        std::shared_ptr<PreintegrationType> preintegrated;
+
+        NavState prev_state;
+        NavState prop_state;
+        imuBias::ConstantBias prev_bias;
+
         // Factor graph class
-        NonlinearFactorGraph* graph;    
+        NonlinearFactorGraph graph;    
         Values initial_values; // Keep track of initial values for optimization
 
         int state_count; // Counts the number of states
 
         void initializeFactorGraph();
+
+        double ts_head; // Keep track of timestamp
+        double ts_init;
 
         // Init stuff
         bool init;

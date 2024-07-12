@@ -1,44 +1,68 @@
 #include "gtsam_nav/imu.h"
 
-IMUHandle::IMUHandle(GraphHandle* p_gh){
-    this->p_gh = p_gh;
-    gravity = Unit3(0, 0, -1); // Direction of gravity used for orientation initialization
+boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams() {
+  // We use the sensor specs to build the noise model for the IMU factor.
+  double accel_noise_sigma = 0.0003924;
+  double gyro_noise_sigma = 0.000205689024915;
+  double accel_bias_rw_sigma = 0.004905;
+  double gyro_bias_rw_sigma = 0.000001454441043;
+  Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
+  Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);
+  Matrix33 integration_error_cov =
+      I_3x3 * 1e-8;  // error committed in integrating position from velocities
+  Matrix33 bias_acc_cov = I_3x3 * pow(accel_bias_rw_sigma, 2);
+  Matrix33 bias_omega_cov = I_3x3 * pow(gyro_bias_rw_sigma, 2);
+  Matrix66 bias_acc_omega_init =
+      I_6x6 * 1e-5;  // error in the bias used for preintegration
+
+  auto p = PreintegratedCombinedMeasurements::Params::MakeSharedD(9.83);
+
+  // PreintegrationBase params:
+  p->accelerometerCovariance =
+      measured_acc_cov;  // acc white noise in continuous
+  p->integrationCovariance =
+      integration_error_cov;  // integration uncertainty continuous
+  // should be using 2nd order integration
+  // PreintegratedRotation params:
+  p->gyroscopeCovariance =
+      measured_omega_cov;  // gyro white noise in continuous
+  // PreintegrationCombinedMeasurements params:
+  p->biasAccCovariance = bias_acc_cov;      // acc bias in continuous
+  p->biasOmegaCovariance = bias_omega_cov;  // gyro bias in continuous
+  p->biasAccOmegaInt = bias_acc_omega_init;
+
+  return p;
+}
+
+IMUHandle::IMUHandle(){
+    gravity_ = Vector3(0, 0, -9.83); // Direction of gravity used for orientation initialization
+
+    // Pre-integration
+    auto p = imuParams();
+    preintegrated = std::make_shared<PreintegratedImuMeasurements>(p); // Zero bias 
 }
 
 
-void IMUHandle::integrateMeasurement(sensor_msgs::Imu::ConstPtr msg){
-    // TODO: Implement
-}
-
-void IMUHandle::initializeOrientation(sensor_msgs::Imu::ConstPtr msg){
-    // Alignment test
-    Unit3 acc(
+Vector3 getAcc(sensor_msgs::Imu::ConstPtr msg){
+    return Vector3(
         msg->linear_acceleration.x, 
         msg->linear_acceleration.y,
         msg->linear_acceleration.z
     );
+}
 
-    // Calculate the rotation that aligns the IMU measurement with gravity
-    Rot3 orientation = Rot3::AlignPair(acc.cross(gravity), gravity, acc);
-
-    p_gh->initializeOrientation(orientation);
-
-    if IMU_DEBUG{
-        // Print the result
-        cout << "Rotation (to align IMU with gravity):\n" << orientation.matrix() << endl;
-        cout << "YPR " << orientation.ypr() << endl << endl;
-    }
+Vector3 getRate(sensor_msgs::Imu::ConstPtr msg){
+    return Vector3(
+        msg->angular_velocity.x, 
+        msg->angular_velocity.y,
+        msg->angular_velocity.z
+    );
 }
 
 
-void IMUHandle::newMsg(sensor_msgs::Imu::ConstPtr msg){
-    if (p_gh->isInit()){
-        // Regular stuff
-        integrateMeasurement(msg);
-    }
-
-    else{
-        // Init stuff
-        initializeOrientation(msg);
-    }
+// Calculate the rotation that aligns the IMU measurement with gravity
+Rot3 IMUHandle::getOrientation(sensor_msgs::Imu::ConstPtr msg){
+    Unit3 acc(getAcc(msg));
+    Unit3 g(gravity_);
+    return Rot3::AlignPair(acc.cross(g), g, acc);
 }
