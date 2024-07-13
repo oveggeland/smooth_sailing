@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
+#include <fstream>
 
 #include "gtsam_nav/graph.h"
 #include <iomanip>
@@ -55,6 +56,12 @@ int main(int argc, char **argv)
 
     // Close bag and delete graph handle (why not)
     bag.close();
+
+    
+    //Save trajectory
+    ofstream outputFile("/home/oskar/navigation/src/gtsam_nav/data/traj.txt");
+    gh->writeResults(outputFile);
+
     delete gh;
 
     return 0;

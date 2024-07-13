@@ -34,6 +34,9 @@ class GraphHandle{
         // Get/set
         int getStateCount(){return state_count;};
 
+        // Write
+        void writeResults(ofstream& f);
+
     private:
         // Sensor handlers
         IMUHandle imu_handle;

@@ -29,3 +29,10 @@ file(GLOB navigation_src "src/*.cpp")
 add_executable(navigation ${navigation_src})
 
 target_link_libraries(navigation gtsam proj ${catkin_LIBRARIES})
+
+
+# Mark executable scripts (Python etc.) for installation
+install(PROGRAMS
+  scripts/plot_trajectory.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}/scripts
+)
