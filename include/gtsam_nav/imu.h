@@ -6,6 +6,9 @@
 #include <gtsam/navigation/ImuFactor.h>
 
 #include "sensor_msgs/Imu.h"
+#include "gtsam_nav/common.h"
+
+#include "yaml-cpp/yaml.h"
 
 using namespace std;
 using namespace gtsam;
@@ -21,18 +24,14 @@ class IMUHandle{
     public:
         // Constructor
         IMUHandle();
+        IMUHandle(const YAML::Node &config);
 
         // Initialize orientation from accelerometer measurement
-        Rot3 getOrientation(sensor_msgs::Imu::ConstPtr msg);
+        Rot3 getInitialOrientation(sensor_msgs::Imu::ConstPtr msg);
 
     private:
         Vector3 gravity_;
-
-        double ts_prev; // Track IMU timestamps for preintegration
-        Vector3 acc_prev;
-        Vector3 rate_prev;
-
-        shared_ptr<PreintegrationType> preintegrated;
+        double initial_heading;
 };
 
 #endif

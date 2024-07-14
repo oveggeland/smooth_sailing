@@ -4,7 +4,7 @@
 // Constructor
 GraphHandle::GraphHandle(const YAML::Node &config){
     init=false;
-    imu_handle = IMUHandle();
+    imu_handle = IMUHandle(config);
     gnss_handle = GNSSHandle();
 
     // Initialize imu-preintegration
@@ -35,7 +35,7 @@ void GraphHandle::newImuMsg(sensor_msgs::Imu::ConstPtr msg){
         ts_head = ts; // IMPORTANT 
     }
     else{
-        Rot3 R0 = imu_handle.getOrientation(msg);
+        Rot3 R0 = imu_handle.getInitialOrientation(msg);
         initializeOrientation(R0, ts);
     }
 }
@@ -222,10 +222,7 @@ void GraphHandle::initializePlanarPosition(Vector2 p, double ts){
 }
 
 void GraphHandle::initializeOrientation(Rot3 R0, double ts){
-    float initial_heading = 0.5;
-    Rot3 R_align = Rot3::Ypr(initial_heading - R0.ypr()[0], 0, 0);
-
-    prior_rot = R_align.compose(R0);
+    prior_rot = R0;
 
     rp_init = true;
     ts_init = ts;

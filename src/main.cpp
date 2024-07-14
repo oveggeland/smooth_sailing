@@ -20,7 +20,7 @@ int main(int argc, char **argv)
     const YAML::Node config = YAML::LoadFile("/home/oskar/navigation/src/gtsam_nav/cfg/params.yaml");
 
     // Graph handle
-    GraphHandle* gh = new GraphHandle(config);
+    GraphHandle graph_handle = GraphHandle(config);
 
     // Open bag
     rosbag::Bag bag(config["in_file"].as<std::string>().c_str());  // BagMode is Read by default
@@ -42,15 +42,15 @@ int main(int argc, char **argv)
         // Sort by message type
         msg_type = m.getDataType();
         if (msg_type == "sensor_msgs/Imu"){
-            gh->newImuMsg(m.instantiate<sensor_msgs::Imu>());
+            graph_handle.newImuMsg(m.instantiate<sensor_msgs::Imu>());
         }
 
         else if (msg_type == "sensor_msgs/NavSatFix"){
-            gh->newGNSSMsg(m.instantiate<sensor_msgs::NavSatFix>());
+            graph_handle.newGNSSMsg(m.instantiate<sensor_msgs::NavSatFix>());
         }
 
         // Limit trajectory size (Change this as appropriate)
-        if (gh->getStateCount() > 120){
+        if (graph_handle.getStateCount() > 120){
             ROS_INFO("Maximum state count reached, stop reading rosbag");
             break;
         }
@@ -58,14 +58,11 @@ int main(int argc, char **argv)
 
     // Close bag and delete graph handle (why not)
     bag.close();
-
     
     //Save trajectory
     ROS_INFO_STREAM("Finished bag file, writing navigation results to file: " << config["out_file"].as<std::string>());
     ofstream outputFile(config["out_file"].as<std::string>().c_str());
-    gh->writeResults(outputFile);
-
-    delete gh;
+    graph_handle.writeResults(outputFile);
 
     return 0;
 }
