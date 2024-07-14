@@ -20,3 +20,5 @@ Vector2 GNSSHandle::projectCartesian(sensor_msgs::NavSatFix::ConstPtr msg){
     return Vector2(output_coords.xy.y, output_coords.xy.x);
 }
 
+
+

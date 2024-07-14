@@ -9,7 +9,7 @@ import numpy as np
 if __name__ == "__main__":
     # Load the CSV file without a header
     file_path = '/home/oskar/navigation/src/gtsam_nav/data/traj.txt'
-    data = pd.read_csv(file_path, header=None)
+    data = pd.read_csv(file_path)
 
     # Extract the position data by index using NumPy arrays
     data_np = data.to_numpy()
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     # Generate time steps
     time = np.arange(len(x))
 
-    ax1 = fig.add_subplot(321, projection='3d')
+    ax1 = fig.add_subplot(421, projection='3d')
     sc = ax1.scatter(x, y, z, c=time, cmap='viridis', marker='o')
     ax1.set_xlabel('X Position')
     ax1.set_ylabel('Y Position')
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     velocity_z = data_np[:, 5]
 
     # Plot velocity
-    ax2 = fig.add_subplot(322)
+    ax2 = fig.add_subplot(422)
     ax2.plot(velocity_x, label='Velocity X')
     ax2.plot(velocity_y, label='Velocity Y')
     ax2.plot(velocity_z, label='Velocity Z')
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     yaw = data_np[:, 8]
 
     # Plot orientation
-    ax3 = fig.add_subplot(323)
+    ax3 = fig.add_subplot(423)
     ax3.plot(roll, label='Roll')
     ax3.plot(pitch, label='Pitch')
     ax3.plot(yaw, label='Yaw')
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     acc_bias_z = data_np[:, 11]
 
     # Plot acceleration bias
-    ax4 = fig.add_subplot(324)
+    ax4 = fig.add_subplot(424)
     ax4.plot(acc_bias_x, label='Acc Bias X')
     ax4.plot(acc_bias_y, label='Acc Bias Y')
     ax4.plot(acc_bias_z, label='Acc Bias Z')
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     gyro_bias_z = data_np[:, 14]
 
     # Plot gyroscope bias
-    ax5 = fig.add_subplot(325)
+    ax5 = fig.add_subplot(425)
     ax5.plot(gyro_bias_x, label='Gyro Bias X')
     ax5.plot(gyro_bias_y, label='Gyro Bias Y')
     ax5.plot(gyro_bias_z, label='Gyro Bias Z')
@@ -91,13 +91,34 @@ if __name__ == "__main__":
     ax5.set_title('Gyroscope Bias Over Time')
     ax5.legend()
     
-    # Plot gyroscope bias
-    ax6 = fig.add_subplot(326)
+    # Plot planar position
+    ax6 = fig.add_subplot(426)
     ax6.scatter(y, x, c=time)
     ax6.set_xlabel('East[m]')
     ax6.set_ylabel('North[m]')
     ax6.set_title('Cartesian position')
-    ax6.legend()
+
+
+    # Plot altitude
+    ax7 = fig.add_subplot(427)
+    ax7.plot(z, label="Altitude [m]")
+    ax7.set_xlabel('Time Step')
+    ax7.set_ylabel('Altitude')
+    ax7.set_title('Altitude Over Time')
+    ax7.legend()
+
+
+    # Plot gnss biases
+    gnss_bias_x = data_np[:, 15]
+    gnss_bias_y = data_np[:, 16]
+    
+    ax8 = fig.add_subplot(428)
+    ax8.plot(gnss_bias_x, label="North bias [m]")
+    ax8.plot(gnss_bias_y, label="East bias [m]")
+    ax8.set_xlabel('Time Step')
+    ax8.set_ylabel('GNSS Bias')
+    ax8.set_title('GNSS Bias Over Time')
+    ax8.legend()
 
 
 

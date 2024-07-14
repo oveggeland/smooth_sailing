@@ -2,10 +2,10 @@
 
 boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams() {
   // We use the sensor specs to build the noise model for the IMU factor.
-  double accel_noise_sigma = 0.0003924;
-  double gyro_noise_sigma = 0.000205689024915;
-  double accel_bias_rw_sigma = 0.004905;
-  double gyro_bias_rw_sigma = 0.000001454441043;
+  double accel_noise_sigma = 3.0e-3;
+  double gyro_noise_sigma = 2.0e-5;
+  double accel_bias_rw_sigma = 0.0;
+  double gyro_bias_rw_sigma = 0.0;
   Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
   Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);
   Matrix33 integration_error_cov =
@@ -15,8 +15,8 @@ boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams() {
   Matrix66 bias_acc_omega_init =
       I_6x6 * 1e-5;  // error in the bias used for preintegration
 
-  auto p = PreintegratedCombinedMeasurements::Params::MakeSharedD(9.83);
-
+  auto p = PreintegratedCombinedMeasurements::Params::MakeSharedD(9.831);
+  
   // PreintegrationBase params:
   p->accelerometerCovariance =
       measured_acc_cov;  // acc white noise in continuous
@@ -35,7 +35,7 @@ boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams() {
 }
 
 IMUHandle::IMUHandle(){
-    gravity_ = Vector3(0, 0, -9.83); // Direction of gravity used for orientation initialization
+    gravity_ = Vector3(0, 0, -9.831); // Direction of gravity used for orientation initialization
 
     // Pre-integration
     auto p = imuParams();

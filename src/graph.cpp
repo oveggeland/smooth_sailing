@@ -60,12 +60,21 @@ void GraphHandle::newCorrection(double ts){
         B(state_count - 1), B(state_count), zero_bias,
         bias_noise_model));
 
+    // Bias gnss 
+    auto gnss_bias_noise_model = noiseModel::Isotropic::Sigma(2, 0.25);
+    float decay_factor = 0.98;
+    Point2 decay = -prev_gnss_bias*(1-decay_factor);
+    graph.add(BetweenFactor<Point2>(
+        G(state_count - 1), G(state_count), decay,
+        gnss_bias_noise_model));
+
 
     // Propogate to get new initial values
     prop_state = preintegrated->predict(prev_state, prev_bias);
     initial_values.insert(X(state_count), prop_state.pose());
     initial_values.insert(V(state_count), prop_state.v());
     initial_values.insert(B(state_count), prev_bias);
+    initial_values.insert(G(state_count), prev_gnss_bias);
 
     // Optimize
     Values result;
@@ -80,6 +89,7 @@ void GraphHandle::newCorrection(double ts){
     prev_state = NavState(result.at<Pose3>(X(state_count)),
                             result.at<Vector3>(V(state_count)));
     prev_bias = result.at<imuBias::ConstantBias>(B(state_count));
+    prev_gnss_bias = result.at<Point2>(G(state_count));
 
     preintegrated->resetIntegrationAndSetBias(prev_bias);
 
@@ -92,17 +102,24 @@ void GraphHandle::newCorrection(double ts){
 // Entry point for new GNSS measurements
 void GraphHandle::newGNSSMsg(sensor_msgs::NavSatFix::ConstPtr msg){
     double ts = msg->header.stamp.toSec();
-    Vector2 xy = gnss_handle.projectCartesian(msg);
+    Point2 xy = gnss_handle.projectCartesian(msg);
 
     if (init){
         // Add GNSS factor to graph
-        auto correction_noise = noiseModel::Isotropic::Sigma(3, 1.0);
-        GPSFactor gps_factor(X(state_count), Point3(xy[0], xy[1], 0), correction_noise);
+        auto correction_noise = noiseModel::Isotropic::Sigma(2, 1);
+        BiasedGNSSFactor gps_factor(X(state_count), G(state_count), xy, correction_noise);
         graph.add(gps_factor);
 
         cout << "Added GNSS factor at state node " << state_count << endl;
 
-        
+        // Add dummy height measurement
+        if (state_count % 10 == 0){
+            AltitudeFactor altitude_factor(X(state_count), 0, noiseModel::Isotropic::Sigma(1, 1));
+            graph.add(altitude_factor);
+
+            cout << "Added dummy altitude factor at state node " << state_count << endl;
+        }
+
         newCorrection(ts);
     }
     else{
@@ -119,11 +136,13 @@ void GraphHandle::newGNSSMsg(sensor_msgs::NavSatFix::ConstPtr msg){
 
 
 void GraphHandle::writeResults(ofstream& f){
+    f << "x, y, z, vx, vy, vz, r, p, y, bax, bay, baz, bgx, bgy, bgz, b_gnss_x, b_gnss_y" << endl;
     Pose3 pose;
     Vector3 x;
     Vector3 ypr;
     Vector3 v;
     Vector6 b;
+    Point2 b_gnss;
 
     f << fixed;
     for (int i = 0; i < state_count; i++){
@@ -132,11 +151,13 @@ void GraphHandle::writeResults(ofstream& f){
         ypr = pose.rotation().ypr();
         v = initial_values.at<Vector3>(V(i));
         b = initial_values.at<imuBias::ConstantBias>(B(i)).vector();
+        b_gnss = initial_values.at<Point2>(G(i));
 
         f << x[0] << ", " << x[1] << ", " << x[2] << ", ";
         f << v[0] << ", " << v[1] << ", " << v[2] << ", ";
         f << ypr[2] << ", " << ypr[1] << ", " << ypr[0] << ", ";
-        f << b[0] << ", " << b[1] << ", " << b[2] << ", " << b[3] << ", " << b[4] << ", " << b[5] << endl;
+        f << b[0] << ", " << b[1] << ", " << b[2] << ", " << b[3] << ", " << b[4] << ", " << b[5] << ", ";
+        f << b_gnss[0] << ", " << b_gnss[1] << endl;
     }
 }
 
@@ -150,22 +171,27 @@ void GraphHandle::initializeFactorGraph(){
 
     // Assemble prior noise model and add it the graph.`
     auto pose_noise_model = noiseModel::Diagonal::Sigmas(
-        (Vector(6) << 1.5, 1.5, 1.5, 1, 1, 1)
+        (Vector(6) << 0.1, 0.1, 1.5, 1, 1, 1)
         .finished());  // rad,rad,rad,m, m, m
     auto velocity_noise_model = noiseModel::Diagonal::Sigmas(
-        (Vector(3) << 0.5, 0.5, 0.5)
+        (Vector(3) << 0.5, 0.5, 0.1)
         .finished());  // m/s
-    auto bias_noise_model = noiseModel::Isotropic::Sigma(6, 1e-2);
+    auto bias_noise_model = noiseModel::Diagonal::Sigmas(
+        (Vector(6) << 1e-2, 1e-2, 1e-2, 1e-3, 1e-3, 1e-3)
+        .finished()); 
+    auto gnss_bias_noise_model = noiseModel::Isotropic::Sigma(2, 2); // GPS OFFSET IS 2 METERS UNCERTAIN IN BEGINNING
 
     Pose3 prior_pose(prior_rot, prior_pos);
 
     initial_values.insert(X(0), prior_pose);
     initial_values.insert(V(0), prior_vel);
     initial_values.insert(B(0), prior_imu_bias);
+    initial_values.insert(G(0), prior_gnss_bias);
 
     graph.addPrior(X(0), prior_pose, pose_noise_model);
     graph.addPrior(V(0), prior_vel, velocity_noise_model);
     graph.addPrior(B(0), prior_imu_bias, bias_noise_model);
+    graph.addPrior(G(0), prior_gnss_bias, gnss_bias_noise_model);
 
 
     // Number of states is now 1, since we have initialized the graph
@@ -196,11 +222,10 @@ void GraphHandle::initializePlanarPosition(Vector2 p, double ts){
 }
 
 void GraphHandle::initializeOrientation(Rot3 R0, double ts){
-    float initial_heading = 0.2;
-    
-    Rot3 R_align = Rot3::Ypr(initial_heading, 0, 0);
+    float initial_heading = 0;
+    Rot3 R_align = Rot3::Ypr(initial_heading - R0.ypr()[0], 0, 0);
 
-    prior_rot = R_align.compose(R_align);
+    prior_rot = R_align.compose(R0);
 
     rp_init = true;
     ts_init = ts;

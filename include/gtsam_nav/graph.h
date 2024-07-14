@@ -13,6 +13,7 @@
 
 #include "gtsam_nav/gnss.h"
 #include "gtsam_nav/imu.h"
+#include "gtsam_nav/lidar.h"
 
 
 using namespace gtsam;
@@ -21,6 +22,7 @@ using namespace std;
 using symbol_shorthand::B;  // Bias  (ax,ay,az,gx,gy,gz)
 using symbol_shorthand::V;  // Vel   (xdot,ydot,zdot)
 using symbol_shorthand::X;  // Pose3 (x,y,z,r,p,y)
+using symbol_shorthand::G;  // GNSS OFFSET (north, east)
 
 class GraphHandle{
     public:
@@ -60,6 +62,7 @@ class GraphHandle{
         NavState prev_state;
         NavState prop_state;
         imuBias::ConstantBias prev_bias;
+        Point2 prev_gnss_bias;
 
         // Factor graph class
         NonlinearFactorGraph graph;    
@@ -89,6 +92,7 @@ class GraphHandle{
         Vector3 prior_vel;
 
         imuBias::ConstantBias prior_imu_bias;  // assume zero initial bias
+        Point2 prior_gnss_bias; 
 };
 
 #endif
