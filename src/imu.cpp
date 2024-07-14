@@ -19,6 +19,7 @@ Vector3 getRate(sensor_msgs::Imu::ConstPtr msg){
 }
 
 IMUHandle::IMUHandle(const YAML::Node &config){
+    // Import parameters from yaml
     gravity_norm_ = config["gravity_norm"].as<double>();
     initial_heading = DEG2RAD*config["initial_heading"].as<double>();
 
@@ -26,8 +27,43 @@ IMUHandle::IMUHandle(const YAML::Node &config){
     gyro_noise_sigma = config["imu_gyro_noise_sigma"].as<double>();
     accel_bias_rw_sigma = config["imu_accel_bias_rw_sigma"].as<double>();
     gyro_bias_rw_sigma = config["imu_gyro_bias_rw_sigma"].as<double>();
+
+    // Pre-integration
+    auto p = getPreintegrationParams();
+    preintegrated =
+        std::make_shared<PreintegratedCombinedMeasurements>(p);
+    assert(preintegrated);
+
+    
 }
 
+CombinedImuFactor IMUHandle::getIMUFactor(Key xi, Key vi, Key bi, Key xj, Key vj, Key bj){
+    auto preint_imu = dynamic_cast<const PreintegratedCombinedMeasurements&>(*preintegrated);
+    return CombinedImuFactor(xi, vi, xj, vj, bi, bj, preint_imu);
+}
+
+NavState IMUHandle::predict(NavState state, imuBias::ConstantBias bias){
+    return preintegrated->predict(state, bias);
+}
+
+void IMUHandle::resetIntegrationAndSetBias(imuBias::ConstantBias bias){
+    preintegrated->resetIntegrationAndSetBias(bias);
+}
+
+void IMUHandle::integrateMeasurement(double dt){
+    assert(dt > 0);
+    if (!prev_acc.isZero()){
+        preintegrated->integrateMeasurement(prev_acc, prev_rate, dt);
+    }
+}
+
+void IMUHandle::integrateMeasurement(sensor_msgs::Imu::ConstPtr msg, double dt){
+    assert(dt > 0);
+    prev_acc = getAcc(msg);
+    prev_rate = getRate(msg);
+
+    preintegrated->integrateMeasurement(prev_acc, prev_rate, dt);
+}
 
 // Estimate a initial pose of the IMU based on a measurement
 Rot3 IMUHandle::getInitialOrientation(sensor_msgs::Imu::ConstPtr msg){
@@ -44,7 +80,7 @@ Rot3 IMUHandle::getInitialOrientation(sensor_msgs::Imu::ConstPtr msg){
     return R0;
 }
 
-boost::shared_ptr<PreintegratedCombinedMeasurements::Params> IMUHandle::getParams() {
+boost::shared_ptr<PreintegratedCombinedMeasurements::Params> IMUHandle::getPreintegrationParams() {
   // We use the sensor specs to build the noise model for the IMU factor.
   Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
   Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);

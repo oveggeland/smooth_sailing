@@ -23,11 +23,20 @@ class IMUHandle{
         IMUHandle(){};
         IMUHandle(const YAML::Node &config);
 
+
+        void integrateMeasurement(double dt); // Use last measurement available
+        void integrateMeasurement(sensor_msgs::Imu::ConstPtr msg, double dt);
+        NavState predict(NavState state, imuBias::ConstantBias bias);
+        void resetIntegrationAndSetBias(imuBias::ConstantBias bias);
+
+        CombinedImuFactor getIMUFactor(Key xi, Key vi, Key bi, Key xj, Key vj, Key bj);
+
         Rot3 getInitialOrientation(sensor_msgs::Imu::ConstPtr msg);
 
-        boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getParams();
+        boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getPreintegrationParams();
 
     private:
+        // Parameters
         double gravity_norm_;
         double initial_heading;
 
@@ -35,6 +44,12 @@ class IMUHandle{
         double gyro_noise_sigma;
         double accel_bias_rw_sigma;
         double gyro_bias_rw_sigma;
+
+        // Pre-integration
+        Vector3 prev_acc;
+        Vector3 prev_rate;
+
+        std::shared_ptr<PreintegrationType> preintegrated;
 };
 
 #endif

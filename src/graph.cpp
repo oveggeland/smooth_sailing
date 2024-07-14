@@ -9,12 +9,6 @@ GraphHandle::GraphHandle(const YAML::Node &config){
     // Sensor handlers
     imu_handle = IMUHandle(config);
     gnss_handle = GNSSHandle(config);
-
-    // Initialize imu-preintegration
-    auto p = imu_handle.getParams();
-    preintegrated =
-        std::make_shared<PreintegratedCombinedMeasurements>(p);
-    assert(preintegrated);
 }
 
 
@@ -28,12 +22,7 @@ void GraphHandle::newImuMsg(sensor_msgs::Imu::ConstPtr msg){
             cout << "ERROR IMU DT < 0" << endl;
         }        
         
-        preintegrated->integrateMeasurement(
-            getAcc(msg), 
-            getRate(msg), 
-            dt
-        );
-
+        imu_handle.integrateMeasurement(msg, dt);
         ts_head = ts; // IMPORTANT 
     }
     else{
@@ -43,28 +32,29 @@ void GraphHandle::newImuMsg(sensor_msgs::Imu::ConstPtr msg){
 }
 
 
+// Common things for all corrections
 void GraphHandle::newCorrection(double ts){
-    // Adding IMU factor and optimizing.
-    // TODO: Integrate up the last part (between last IMU update and the correction)
-    auto preint_imu = dynamic_cast<const PreintegratedCombinedMeasurements&>(*preintegrated);
-    CombinedImuFactor imu_factor(X(state_count - 1), V(state_count - 1),
-                        X(state_count), V(state_count),
-                        B(state_count - 1), B(state_count), preint_imu);
+    int i = state_count-1;
+    int j = state_count;
+
+    // Integrate last time delta (from last considered IMU point until now)
+    imu_handle.integrateMeasurement(ts-ts_head);
+
+    // Add IMU factor
+    auto imu_factor = imu_handle.getIMUFactor(X(i), V(i), B(i), X(j), V(j), B(j));
     graph.add(imu_factor);
-    cout << "Adding IMU factor between node " << state_count-1 << " and " << state_count << endl;
+    cout << "Adding IMU factor between node " << i << " and " << j << endl;
 
-
-    // GNSS bias 
-    auto gnss_bias_factor = gnss_handle.getBiasFactor(prev_gnss_bias, G(state_count-1), G(state_count));
+    // Add GNSS bias factor 
+    auto gnss_bias_factor = gnss_handle.getBiasFactor(prev_gnss_bias, G(i), G(j));
     graph.add(gnss_bias_factor);
 
-
     // Propogate to get new initial values
-    prop_state = preintegrated->predict(prev_state, prev_bias);
-    initial_values.insert(X(state_count), prop_state.pose());
-    initial_values.insert(V(state_count), prop_state.v());
-    initial_values.insert(B(state_count), prev_bias);
-    initial_values.insert(G(state_count), prev_gnss_bias);
+    prop_state = imu_handle.predict(prev_state, prev_bias);
+    initial_values.insert(X(j), prop_state.pose());
+    initial_values.insert(V(j), prop_state.v());
+    initial_values.insert(B(j), prev_bias);
+    initial_values.insert(G(j), prev_gnss_bias);
 
     // Optimize
     Values result;
@@ -76,12 +66,12 @@ void GraphHandle::newCorrection(double ts){
     initial_values = result;
 
     // Overwrite the beginning of the preintegration for the next step.
-    prev_state = NavState(result.at<Pose3>(X(state_count)),
-                            result.at<Vector3>(V(state_count)));
-    prev_bias = result.at<imuBias::ConstantBias>(B(state_count));
-    prev_gnss_bias = result.at<Point2>(G(state_count));
+    prev_state = NavState(result.at<Pose3>(X(j)),
+                            result.at<Vector3>(V(j)));
+    prev_bias = result.at<imuBias::ConstantBias>(B(j));
+    prev_gnss_bias = result.at<Point2>(G(j));
 
-    preintegrated->resetIntegrationAndSetBias(prev_bias);
+    imu_handle.resetIntegrationAndSetBias(prev_bias);
 
     // Control variables
     state_count ++;

@@ -57,9 +57,6 @@ class GraphHandle{
         double prev_ts_gnss;
 
         // State stuff
-
-        std::shared_ptr<PreintegrationType> preintegrated;
-
         NavState prev_state;
         NavState prop_state;
         imuBias::ConstantBias prev_bias;
