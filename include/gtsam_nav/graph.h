@@ -74,7 +74,7 @@ class GraphHandle{
         double ts_init;
 
         // Init stuff
-        bool init;
+        bool init=false;
         void updateInit();
     
         bool rp_init=false; // Rool pitch from IMU
@@ -85,12 +85,12 @@ class GraphHandle{
         bool v_z_init=true; // Velocity in z direction (init to 0)
 
         // Initial states
-        Point3 prior_pos;
-        Rot3 prior_rot;
-        Vector3 prior_vel;
+        Point3 prior_pos = Point3(0, 0, 0);
+        Rot3 prior_rot = Rot3();
+        Vector3 prior_vel = Vector3(0, 0, 0);
 
-        imuBias::ConstantBias prior_imu_bias;  // assume zero initial bias
-        Point2 prior_gnss_bias; 
+        imuBias::ConstantBias prior_imu_bias = imuBias::ConstantBias();  // assume zero initial bias
+        Point2 prior_gnss_bias = Point2(0, 0); 
 };
 
 #endif

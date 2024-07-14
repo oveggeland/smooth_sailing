@@ -1,5 +1,6 @@
 in_file: "/home/oskar/navigation/src/gtsam_nav/data/cooked.bag"
 out_file: "/home/oskar/navigation/src/gtsam_nav/data/traj.txt"
+max_time_interval: 100
 
 gravity_norm: 9.831 # Norm in m/s^2, sign and reference frame is sorted in imu.cpp
 initial_heading: 0 # Degrees

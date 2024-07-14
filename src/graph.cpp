@@ -3,9 +3,6 @@
 
 // Constructor
 GraphHandle::GraphHandle(const YAML::Node &config){
-    // Flag
-    init=false;
-    
     // Sensor handlers
     imu_handle = IMUHandle(config);
     gnss_handle = GNSSHandle(config);

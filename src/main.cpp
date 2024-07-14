@@ -6,7 +6,6 @@
 #include "yaml-cpp/yaml.h"
 
 #include "gtsam_nav/graph.h"
-#include <iomanip>
 
 using namespace std;
 
@@ -26,14 +25,24 @@ int main(int argc, char **argv)
     rosbag::Bag bag(config["in_file"].as<std::string>().c_str());  // BagMode is Read by default
 
     // Iterate over bag file and build factors
+    double t0 = 0.0;
     double prev_ts = 0.0;
     double current_ts = 0.0;
+    double max_time_interval = config["max_time_interval"].as<double>();
 
     string msg_type;
     for(rosbag::MessageInstance const m: rosbag::View(bag)){
         // Validate time stamps
         current_ts = m.getTime().toSec();
-        if (current_ts <= prev_ts){
+        if (t0 == 0.0){
+            t0 = current_ts;
+        }
+        
+        if (current_ts - t0 >= max_time_interval){
+            ROS_INFO("Max time reached, stop new messages");
+            break;
+        }
+        else if (current_ts <= prev_ts){
             ROS_WARN("Old message, skipping measurement");
             continue;
         }
@@ -49,11 +58,6 @@ int main(int argc, char **argv)
             graph_handle.newGNSSMsg(m.instantiate<sensor_msgs::NavSatFix>());
         }
 
-        // Limit trajectory size (Change this as appropriate)
-        if (graph_handle.getStateCount() > 120){
-            ROS_INFO("Maximum state count reached, stop reading rosbag");
-            break;
-        }
     }
 
     // Close bag and delete graph handle (why not)
