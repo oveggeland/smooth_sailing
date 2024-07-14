@@ -10,7 +10,7 @@ GraphHandle::GraphHandle(const YAML::Node &config){
     // Initialize imu-preintegration
     auto p = imuParams();
     preintegrated =
-        std::make_shared<PreintegratedImuMeasurements>(p);
+        std::make_shared<PreintegratedCombinedMeasurements>(p);
     assert(preintegrated);
 }
 
@@ -44,21 +44,21 @@ void GraphHandle::newImuMsg(sensor_msgs::Imu::ConstPtr msg){
 void GraphHandle::newCorrection(double ts){
     // Adding IMU factor and optimizing.
     // TODO: Integrate up the last part (between last IMU update and the correction)
-    auto preint_imu = dynamic_cast<const PreintegratedImuMeasurements&>(*preintegrated);
-    ImuFactor imu_factor(X(state_count - 1), V(state_count - 1),
+    auto preint_imu = dynamic_cast<const PreintegratedCombinedMeasurements&>(*preintegrated);
+    CombinedImuFactor imu_factor(X(state_count - 1), V(state_count - 1),
                         X(state_count), V(state_count),
-                        B(state_count - 1), preint_imu);
+                        B(state_count - 1), B(state_count), preint_imu);
     graph.add(imu_factor);
     cout << "Adding IMU factor between node " << state_count-1 << " and " << state_count << endl;
 
 
     // Bias noise betweenfactor
     // TODO: Tune/fix bias noise model
-    auto bias_noise_model = noiseModel::Isotropic::Sigma(6, 1e-9);
-    imuBias::ConstantBias zero_bias(Vector3(0, 0, 0), Vector3(0, 0, 0));
-    graph.add(BetweenFactor<imuBias::ConstantBias>(
-        B(state_count - 1), B(state_count), zero_bias,
-        bias_noise_model));
+    //auto bias_noise_model = noiseModel::Isotropic::Sigma(6, 1e-9);
+    //imuBias::ConstantBias zero_bias(Vector3(0, 0, 0), Vector3(0, 0, 0));
+    //graph.add(BetweenFactor<imuBias::ConstantBias>(
+    //    B(state_count - 1), B(state_count), zero_bias,
+    //    bias_noise_model));
 
     // Bias gnss 
     auto gnss_bias_noise_model = noiseModel::Isotropic::Sigma(2, 0.25);

@@ -4,8 +4,8 @@ boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams() {
   // We use the sensor specs to build the noise model for the IMU factor.
   double accel_noise_sigma = 3.0e-3;
   double gyro_noise_sigma = 2.0e-5;
-  double accel_bias_rw_sigma = 0.0;
-  double gyro_bias_rw_sigma = 0.0;
+  double accel_bias_rw_sigma = 1e-9;
+  double gyro_bias_rw_sigma = 1e-9;
   Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
   Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);
   Matrix33 integration_error_cov =
