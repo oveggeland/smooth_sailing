@@ -54,7 +54,7 @@ void GraphHandle::newCorrection(double ts){
 
     // Bias noise betweenfactor
     // TODO: Tune/fix bias noise model
-    auto bias_noise_model = noiseModel::Isotropic::Sigma(6, 1e-3);
+    auto bias_noise_model = noiseModel::Isotropic::Sigma(6, 1e-9);
     imuBias::ConstantBias zero_bias(Vector3(0, 0, 0), Vector3(0, 0, 0));
     graph.add(BetweenFactor<imuBias::ConstantBias>(
         B(state_count - 1), B(state_count), zero_bias,
@@ -222,7 +222,7 @@ void GraphHandle::initializePlanarPosition(Vector2 p, double ts){
 }
 
 void GraphHandle::initializeOrientation(Rot3 R0, double ts){
-    float initial_heading = 0;
+    float initial_heading = 0.5;
     Rot3 R_align = Rot3::Ypr(initial_heading - R0.ypr()[0], 0, 0);
 
     prior_rot = R_align.compose(R0);
