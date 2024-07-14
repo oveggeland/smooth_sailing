@@ -1,50 +1,5 @@
 #include "gtsam_nav/imu.h"
 
-boost::shared_ptr<PreintegratedCombinedMeasurements::Params> imuParams() {
-  // We use the sensor specs to build the noise model for the IMU factor.
-  double accel_noise_sigma = 3.0e-3;
-  double gyro_noise_sigma = 2.0e-5;
-  double accel_bias_rw_sigma = 1e-9;
-  double gyro_bias_rw_sigma = 1e-9;
-  Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
-  Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);
-  Matrix33 integration_error_cov =
-      I_3x3 * 1e-8;  // error committed in integrating position from velocities
-  Matrix33 bias_acc_cov = I_3x3 * pow(accel_bias_rw_sigma, 2);
-  Matrix33 bias_omega_cov = I_3x3 * pow(gyro_bias_rw_sigma, 2);
-  Matrix66 bias_acc_omega_init =
-      I_6x6 * 1e-5;  // error in the bias used for preintegration
-
-  auto p = PreintegratedCombinedMeasurements::Params::MakeSharedD(9.831);
-  
-  // PreintegrationBase params:
-  p->accelerometerCovariance =
-      measured_acc_cov;  // acc white noise in continuous
-  p->integrationCovariance =
-      integration_error_cov;  // integration uncertainty continuous
-  // should be using 2nd order integration
-  // PreintegratedRotation params:
-  p->gyroscopeCovariance =
-      measured_omega_cov;  // gyro white noise in continuous
-  // PreintegrationCombinedMeasurements params:
-  p->biasAccCovariance = bias_acc_cov;      // acc bias in continuous
-  p->biasOmegaCovariance = bias_omega_cov;  // gyro bias in continuous
-  p->biasAccOmegaInt = bias_acc_omega_init;
-
-  return p;
-}
-
-
-// Default constructor
-IMUHandle::IMUHandle(){ 
-    gravity_ = Vector3(0, 0, -9.831); // Direction of gravity used for orientation initialization
-}
-
-IMUHandle::IMUHandle(const YAML::Node &config){
-    gravity_ = Vector3(0, 0, -config["gravity_norm"].as<double>()); // Direction of gravity used for orientation initialization
-    initial_heading = DEG2RAD*config["initial_heading"].as<double>();
-}
-
 // Extract accelerometer vector from Imu message
 Vector3 getAcc(sensor_msgs::Imu::ConstPtr msg){
     return Vector3(
@@ -63,12 +18,22 @@ Vector3 getRate(sensor_msgs::Imu::ConstPtr msg){
     );
 }
 
+IMUHandle::IMUHandle(const YAML::Node &config){
+    gravity_norm_ = config["gravity_norm"].as<double>();
+    initial_heading = DEG2RAD*config["initial_heading"].as<double>();
+
+    accel_noise_sigma = config["imu_accel_noise_sigma"].as<double>();
+    gyro_noise_sigma = config["imu_gyro_noise_sigma"].as<double>();
+    accel_bias_rw_sigma = config["imu_accel_bias_rw_sigma"].as<double>();
+    gyro_bias_rw_sigma = config["imu_gyro_bias_rw_sigma"].as<double>();
+}
+
 
 // Estimate a initial pose of the IMU based on a measurement
 Rot3 IMUHandle::getInitialOrientation(sensor_msgs::Imu::ConstPtr msg){
     // Allign acceleration and gravity for roll and pitch
     Unit3 acc(getAcc(msg));
-    Unit3 g(gravity_);
+    Unit3 g(0, 0, -1);
 
     Rot3 R0 = Rot3::AlignPair(acc.cross(g), g, acc);
     
@@ -77,4 +42,34 @@ Rot3 IMUHandle::getInitialOrientation(sensor_msgs::Imu::ConstPtr msg){
     R0 = R_align_heading.compose(R0);
 
     return R0;
+}
+
+boost::shared_ptr<PreintegratedCombinedMeasurements::Params> IMUHandle::getParams() {
+  // We use the sensor specs to build the noise model for the IMU factor.
+  Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
+  Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);
+  Matrix33 integration_error_cov =
+      I_3x3 * 1e-8;  // error committed in integrating position from velocities
+  Matrix33 bias_acc_cov = I_3x3 * pow(accel_bias_rw_sigma, 2);
+  Matrix33 bias_omega_cov = I_3x3 * pow(gyro_bias_rw_sigma, 2);
+  Matrix66 bias_acc_omega_init =
+      I_6x6 * 1e-5;  // error in the bias used for preintegration
+
+  auto p = PreintegratedCombinedMeasurements::Params::MakeSharedD(gravity_norm_);
+  
+  // PreintegrationBase params:
+  p->accelerometerCovariance =
+      measured_acc_cov;  // acc white noise in continuous
+  p->integrationCovariance =
+      integration_error_cov;  // integration uncertainty continuous
+  // should be using 2nd order integration
+  // PreintegratedRotation params:
+  p->gyroscopeCovariance =
+      measured_omega_cov;  // gyro white noise in continuous
+  // PreintegrationCombinedMeasurements params:
+  p->biasAccCovariance = bias_acc_cov;      // acc bias in continuous
+  p->biasOmegaCovariance = bias_omega_cov;  // gyro bias in continuous
+  p->biasAccOmegaInt = bias_acc_omega_init;
+
+  return p;
 }

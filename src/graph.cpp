@@ -4,11 +4,13 @@
 // Constructor
 GraphHandle::GraphHandle(const YAML::Node &config){
     init=false;
+    
+    // Sensor handlers
     imu_handle = IMUHandle(config);
     gnss_handle = GNSSHandle();
 
     // Initialize imu-preintegration
-    auto p = imuParams();
+    auto p = imu_handle.getParams();
     preintegrated =
         std::make_shared<PreintegratedCombinedMeasurements>(p);
     assert(preintegrated);

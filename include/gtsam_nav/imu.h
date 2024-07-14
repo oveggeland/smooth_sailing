@@ -13,9 +13,6 @@
 using namespace std;
 using namespace gtsam;
 
-boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> imuParams();
-
-
 Vector3 getAcc(sensor_msgs::Imu::ConstPtr msg);
 Vector3 getRate(sensor_msgs::Imu::ConstPtr msg);
 
@@ -23,15 +20,21 @@ Vector3 getRate(sensor_msgs::Imu::ConstPtr msg);
 class IMUHandle{
     public:
         // Constructor
-        IMUHandle();
+        IMUHandle(){};
         IMUHandle(const YAML::Node &config);
 
-        // Initialize orientation from accelerometer measurement
         Rot3 getInitialOrientation(sensor_msgs::Imu::ConstPtr msg);
 
+        boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getParams();
+
     private:
-        Vector3 gravity_;
+        double gravity_norm_;
         double initial_heading;
+
+        double accel_noise_sigma;
+        double gyro_noise_sigma;
+        double accel_bias_rw_sigma;
+        double gyro_bias_rw_sigma;
 };
 
 #endif
