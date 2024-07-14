@@ -9,3 +9,11 @@ imu_accel_noise_sigma: 3.0e-3         # Accelerometer noise (continous)
 imu_gyro_noise_sigma: 2.0e-4          # Gyro noise (continous)
 imu_accel_bias_rw_sigma: 1.0e-9       # No bias drift
 imu_gyro_bias_rw_sigma: 1.0e-9        # No bias drift
+
+# GNSS stuff
+gnss_bias_rw_sigma: 0.1            # TODO: Not sure if discrete or not
+gnss_bias_decay: 0.95                 # TODO: Tune with some expert knowledge
+gnss_meas_sigma: 0.2                  # TODO: Sigma of measurement error (after correcting for the bias)
+
+gnss_crs_source: "EPSG:4326"
+gnss_crs_target: "EPSG:6052"

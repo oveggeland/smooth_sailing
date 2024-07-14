@@ -6,6 +6,9 @@
 #include <gtsam/base/Vector.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/nonlinear/NonlinearFactor.h>
+#include <gtsam/slam/BetweenFactor.h>
+
+#include "yaml-cpp/yaml.h"
 
 #include "sensor_msgs/NavSatFix.h"
 
@@ -93,12 +96,23 @@ class BiasedGNSSFactor: public NoiseModelFactor2<Pose3, Point2> {
 class GNSSHandle{
     public:
         // Constructors
-        GNSSHandle(string src="EPSG:4326", string target="EPSG:6052");
+        GNSSHandle(){};
+        GNSSHandle(const YAML::Node &config);
 
         Vector2 projectCartesian(sensor_msgs::NavSatFix::ConstPtr msg); // Retrieve local cartesian coordinates from navsatfix message
+        BetweenFactor<Vector2> getBiasFactor(Vector2 prev_bias, Key i, Key j);
+        BiasedGNSSFactor getCorrectionFactor(Key i, Key j, Vector2 meas);
 
     private:
-        // Member variables
+        // Noise parameters
+        double bias_rw_sigma;
+        double bias_decay;
+        double meas_sigma;
+
+        noiseModel::Isotropic::shared_ptr bias_noise;
+        noiseModel::Isotropic::shared_ptr correction_noise;
+
+        // Projection parameters
         string crs_source;
         string crs_target;
 

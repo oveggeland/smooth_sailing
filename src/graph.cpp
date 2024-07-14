@@ -3,11 +3,12 @@
 
 // Constructor
 GraphHandle::GraphHandle(const YAML::Node &config){
+    // Flag
     init=false;
     
     // Sensor handlers
     imu_handle = IMUHandle(config);
-    gnss_handle = GNSSHandle();
+    gnss_handle = GNSSHandle(config);
 
     // Initialize imu-preintegration
     auto p = imu_handle.getParams();
@@ -27,7 +28,6 @@ void GraphHandle::newImuMsg(sensor_msgs::Imu::ConstPtr msg){
             cout << "ERROR IMU DT < 0" << endl;
         }        
         
-        Vector3 acc = getAcc(msg);
         preintegrated->integrateMeasurement(
             getAcc(msg), 
             getRate(msg), 
@@ -54,21 +54,9 @@ void GraphHandle::newCorrection(double ts){
     cout << "Adding IMU factor between node " << state_count-1 << " and " << state_count << endl;
 
 
-    // Bias noise betweenfactor
-    // TODO: Tune/fix bias noise model
-    //auto bias_noise_model = noiseModel::Isotropic::Sigma(6, 1e-9);
-    //imuBias::ConstantBias zero_bias(Vector3(0, 0, 0), Vector3(0, 0, 0));
-    //graph.add(BetweenFactor<imuBias::ConstantBias>(
-    //    B(state_count - 1), B(state_count), zero_bias,
-    //    bias_noise_model));
-
-    // Bias gnss 
-    auto gnss_bias_noise_model = noiseModel::Isotropic::Sigma(2, 0.25);
-    float decay_factor = 0.98;
-    Point2 decay = -prev_gnss_bias*(1-decay_factor);
-    graph.add(BetweenFactor<Point2>(
-        G(state_count - 1), G(state_count), decay,
-        gnss_bias_noise_model));
+    // GNSS bias 
+    auto gnss_bias_factor = gnss_handle.getBiasFactor(prev_gnss_bias, G(state_count-1), G(state_count));
+    graph.add(gnss_bias_factor);
 
 
     // Propogate to get new initial values
@@ -107,11 +95,8 @@ void GraphHandle::newGNSSMsg(sensor_msgs::NavSatFix::ConstPtr msg){
     Point2 xy = gnss_handle.projectCartesian(msg);
 
     if (init){
-        // Add GNSS factor to graph
-        auto correction_noise = noiseModel::Isotropic::Sigma(2, 1);
-        BiasedGNSSFactor gps_factor(X(state_count), G(state_count), xy, correction_noise);
-        graph.add(gps_factor);
-
+        auto gnss_factor = gnss_handle.getCorrectionFactor(X(state_count), G(state_count), xy);
+        graph.add(gnss_factor);
         cout << "Added GNSS factor at state node " << state_count << endl;
 
         // Add dummy height measurement
