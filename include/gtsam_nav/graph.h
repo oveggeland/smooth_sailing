@@ -15,6 +15,7 @@
 #include "gtsam_nav/imu.h"
 #include "gtsam_nav/lidar.h"
 
+#include "yaml-cpp/yaml.h"
 
 using namespace gtsam;
 using namespace std;
@@ -27,7 +28,7 @@ using symbol_shorthand::G;  // GNSS OFFSET (north, east)
 class GraphHandle{
     public:
         // Constructor
-        GraphHandle();
+        GraphHandle(const YAML::Node &config);
 
         // Sensor specific entry points
         void newImuMsg(sensor_msgs::Imu::ConstPtr msg);

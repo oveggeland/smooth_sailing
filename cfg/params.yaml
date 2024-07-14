@@ -1,0 +1,2 @@
+in_file: "/home/oskar/navigation/src/gtsam_nav/data/cooked.bag"
+out_file: "/home/oskar/navigation/src/gtsam_nav/data/traj.txt"

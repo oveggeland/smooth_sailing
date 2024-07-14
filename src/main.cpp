@@ -3,6 +3,8 @@
 #include <rosbag/view.h>
 #include <fstream>
 
+#include "yaml-cpp/yaml.h"
+
 #include "gtsam_nav/graph.h"
 #include <iomanip>
 
@@ -14,15 +16,14 @@ int main(int argc, char **argv)
     // Initialize node
     ros::init(argc, argv, "navigation");
 
-    // Set precision on cout
-    std::cout << std::fixed;
-    std::cout << std::setprecision(2);
+    // Try to read yaml files
+    const YAML::Node config = YAML::LoadFile("/home/oskar/navigation/src/gtsam_nav/cfg/params.yaml");
 
     // Graph handle
-    GraphHandle* gh = new GraphHandle();
+    GraphHandle* gh = new GraphHandle(config);
 
     // Open bag
-    rosbag::Bag bag("/home/oskar/navigation/src/gtsam_nav/data/cooked.bag");  // BagMode is Read by default
+    rosbag::Bag bag(config["in_file"].as<std::string>().c_str());  // BagMode is Read by default
 
     // Iterate over bag file and build factors
     double prev_ts = 0.0;
@@ -33,7 +34,7 @@ int main(int argc, char **argv)
         // Validate time stamps
         current_ts = m.getTime().toSec();
         if (current_ts <= prev_ts){
-            cout << "Old message, sensor_msgs::NavSatFix::ConstPtr msgskipping measurement" << endl;
+            ROS_WARN("Old message, skipping measurement");
             continue;
         }
         prev_ts = current_ts;
@@ -50,6 +51,7 @@ int main(int argc, char **argv)
 
         // Limit trajectory size (Change this as appropriate)
         if (gh->getStateCount() > 120){
+            ROS_INFO("Maximum state count reached, stop reading rosbag");
             break;
         }
     }
@@ -59,7 +61,8 @@ int main(int argc, char **argv)
 
     
     //Save trajectory
-    ofstream outputFile("/home/oskar/navigation/src/gtsam_nav/data/traj.txt");
+    ROS_INFO_STREAM("Finished bag file, writing navigation results to file: " << config["out_file"].as<std::string>());
+    ofstream outputFile(config["out_file"].as<std::string>().c_str());
     gh->writeResults(outputFile);
 
     delete gh;

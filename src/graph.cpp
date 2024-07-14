@@ -2,7 +2,7 @@
 
 
 // Constructor
-GraphHandle::GraphHandle(){
+GraphHandle::GraphHandle(const YAML::Node &config){
     init=false;
     imu_handle = IMUHandle();
     gnss_handle = GNSSHandle();
