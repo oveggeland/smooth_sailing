@@ -5,6 +5,13 @@ max_time_interval: 100
 gravity_norm: 9.831 # Norm in m/s^2, sign and reference frame is sorted in imu.cpp
 initial_heading: 0 # Degrees
 
+# Uncertanties on initial values
+initial_pos_sigma: [2, 2, 0.5]
+initial_vel_sigma: [2, 2, 0.1]
+initial_euler_sigma: [2, 2, 45]
+initial_acc_bias_sigma: 1.0e-1
+initial_gyro_bias_sigma: 1.0e-9 # TODO: Why is it trying to force us to huge bias?
+
 # IMU noise parameters
 imu_accel_noise_sigma: 3.0e-3         # Accelerometer noise (continous)
 imu_gyro_noise_sigma: 2.0e-4          # Gyro noise (continous)
@@ -12,9 +19,7 @@ imu_accel_bias_rw_sigma: 1.0e-9       # No bias drift
 imu_gyro_bias_rw_sigma: 1.0e-9        # No bias drift
 
 # GNSS stuff
-gnss_bias_rw_sigma: 0.1            # TODO: Not sure if discrete or not
-gnss_bias_decay: 0.95                 # TODO: Tune with some expert knowledge
-gnss_meas_sigma: 0.2                  # TODO: Sigma of measurement error (after correcting for the bias)
+gnss_meas_sigma: 1.0                  # TODO: Sigma of measurement error (after correcting for the bias)
 
 gnss_crs_source: "EPSG:4326"
 gnss_crs_target: "EPSG:6052"

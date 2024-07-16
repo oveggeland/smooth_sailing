@@ -11,80 +11,46 @@
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/slam/BetweenFactor.h>
 
-#include "gtsam_nav/gnss.h"
-#include "gtsam_nav/imu.h"
-#include "gtsam_nav/lidar.h"
-
 #include "yaml-cpp/yaml.h"
+
+#include "gtsam_nav/common.h"
 
 using namespace gtsam;
 using namespace std;
 
-using symbol_shorthand::B;  // Bias  (ax,ay,az,gx,gy,gz)
-using symbol_shorthand::V;  // Vel   (xdot,ydot,zdot)
-using symbol_shorthand::X;  // Pose3 (x,y,z,r,p,y)
-using symbol_shorthand::G;  // GNSS OFFSET (north, east)
 
 class GraphHandle{
     public:
         // Constructor
+        GraphHandle(){};
         GraphHandle(const YAML::Node &config);
 
-        // Sensor specific entry points
-        void newImuMsg(sensor_msgs::Imu::ConstPtr msg);
-        void newGNSSMsg(sensor_msgs::NavSatFix::ConstPtr msg);
+        // Factor handle
+        template <class T>
+        void addFactor(T factor){graph.add(factor);};
 
-        // Get/set
-        int getStateCount(){return state_count;};
+        // Values
+        void addNewValues(const NavState state, const imuBias::ConstantBias bias, const int correction_count);
+        void optimizeAndUpdateValues();
+        void fromValues(NavState &state, imuBias::ConstantBias &bias, const int correction_count);
 
         // Write
-        void writeResults(ofstream& f);
+        void writeResults(int correction_count);
+
+        // Initializers
+        void initialize();
+
+        void initializePlanarPosition(Vector2 p);
+        void initializeRotation(Rot3 R0);
 
     private:
-        // Sensor handlers
-        IMUHandle imu_handle;
-        GNSSHandle gnss_handle;
-
-        // Init stuff
-        void initializePlanarPosition(Vector2 p, double ts);
-        void initializeOrientation(Rot3 q0, double ts);
-        void initializePlanarVelocity(Vector2 v, double ts);
-
-        void newCorrection(double ts);
-
-        // Gnss stuff
-        Vector2 prev_xy_gnss;
-        double prev_ts_gnss;
-
-        // State stuff
-        NavState prev_state;
-        NavState prop_state;
-        imuBias::ConstantBias prev_bias;
-        Point2 prev_gnss_bias;
+        YAML::Node config;
 
         // Factor graph class
-        NonlinearFactorGraph graph;    
-        Values initial_values; // Keep track of initial values for optimization
+        NonlinearFactorGraph graph;  
+        Values values_; // Best guess for all states
 
-        int state_count; // Counts the number of states
-
-        void initializeFactorGraph();
-
-        double ts_head; // Keep track of timestamp
-        double ts_init;
-
-        // Init stuff
-        bool init=false;
-        void updateInit();
-    
-        bool rp_init=false; // Rool pitch from IMU
-        bool y_init=true; // Yaw (NOT IMPLEMENTED)
-        bool xy_init=false; // XY from GPS
-        bool v_xy_init=false; // Velocity from GPS (Two consequtive measurements)
-        bool z_init=true; // Height (NOT IMPLEMENTED)
-        bool v_z_init=true; // Velocity in z direction (init to 0)
-
-        // Initial states
+        // Priors
         Point3 prior_pos = Point3(0, 0, 0);
         Rot3 prior_rot = Rot3();
         Vector3 prior_vel = Vector3(0, 0, 0);

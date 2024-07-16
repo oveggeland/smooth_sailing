@@ -30,43 +30,57 @@ IMUHandle::IMUHandle(const YAML::Node &config){
 
     // Pre-integration
     auto p = getPreintegrationParams();
-    preintegrated =
-        std::make_shared<PreintegratedCombinedMeasurements>(p);
+
+    preintegrated = std::make_shared<PreintegratedCombinedMeasurements>(p);
     assert(preintegrated);
-
-    
 }
 
-CombinedImuFactor IMUHandle::getIMUFactor(Key xi, Key vi, Key bi, Key xj, Key vj, Key bj){
-    auto preint_imu = dynamic_cast<const PreintegratedCombinedMeasurements&>(*preintegrated);
-    return CombinedImuFactor(xi, vi, xj, vj, bi, bj, preint_imu);
-}
-
-NavState IMUHandle::predict(NavState state, imuBias::ConstantBias bias){
-    return preintegrated->predict(state, bias);
-}
-
-void IMUHandle::resetIntegrationAndSetBias(imuBias::ConstantBias bias){
+void IMUHandle::resetIntegration(double ts, imuBias::ConstantBias bias){
+    ts_head_ = ts;
     preintegrated->resetIntegrationAndSetBias(bias);
 }
 
-void IMUHandle::integrateMeasurement(double dt){
-    assert(dt > 0);
-    if (!prev_acc.isZero()){
-        preintegrated->integrateMeasurement(prev_acc, prev_rate, dt);
-    }
+
+/**
+ * Used after initialization of the navigation system. Every new IMU measurement should be integrated in waiting for a new correction.
+ */
+void IMUHandle::integrate(p_imu_msg msg){
+    double ts = msg->header.stamp.toSec();
+    double dt = ts - ts_head_;
+
+    assert(dt > 0 && dt < 0.02); // Debugging purposes
+
+    prev_acc_ = getAcc(msg);
+    prev_rate_ = getRate(msg);
+    ts_head_ = ts;
+
+    preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
 }
 
-void IMUHandle::integrateMeasurement(sensor_msgs::Imu::ConstPtr msg, double dt){
-    assert(dt > 0);
-    prev_acc = getAcc(msg);
-    prev_rate = getRate(msg);
+/**
+ * When correction occurs, we should finish integration by extrapolating the last imu measurements, and return a IMU factor
+ */
+CombinedImuFactor IMUHandle::finishIntegration(double ts_correction, int correction_count){
+    double dt = ts_correction - ts_head_;
+    assert(dt > 0 && dt < 0.02);
 
-    preintegrated->integrateMeasurement(prev_acc, prev_rate, dt);
+    preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
+
+    auto preint_imu = dynamic_cast<const PreintegratedCombinedMeasurements&>(*preintegrated);
+    return CombinedImuFactor(
+        X(correction_count-1), V(correction_count-1), 
+        X(correction_count), V(correction_count), 
+        B(correction_count-1), B(correction_count), 
+        preint_imu);
 }
+
+NavState IMUHandle::predict(NavState prev_state, imuBias::ConstantBias prev_bias){
+    return preintegrated->predict(prev_state, prev_bias);
+}
+
 
 // Estimate a initial pose of the IMU based on a measurement
-Rot3 IMUHandle::getInitialOrientation(sensor_msgs::Imu::ConstPtr msg){
+Rot3 IMUHandle::getInitialRotation(p_imu_msg msg){
     // Allign acceleration and gravity for roll and pitch
     Unit3 acc(getAcc(msg));
     Unit3 g(0, 0, -1);
@@ -80,7 +94,7 @@ Rot3 IMUHandle::getInitialOrientation(sensor_msgs::Imu::ConstPtr msg){
     return R0;
 }
 
-boost::shared_ptr<PreintegratedCombinedMeasurements::Params> IMUHandle::getPreintegrationParams() {
+shared_ptr<PreintegratedCombinedMeasurements::Params> IMUHandle::getPreintegrationParams() {
   // We use the sensor specs to build the noise model for the IMU factor.
   Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
   Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);

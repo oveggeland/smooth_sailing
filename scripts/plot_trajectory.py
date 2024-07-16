@@ -108,19 +108,6 @@ if __name__ == "__main__":
     ax7.legend()
 
 
-    # Plot gnss biases
-    gnss_bias_x = data_np[:, 15]
-    gnss_bias_y = data_np[:, 16]
-    
-    ax8 = fig.add_subplot(428)
-    ax8.plot(gnss_bias_x, label="North bias [m]")
-    ax8.plot(gnss_bias_y, label="East bias [m]")
-    ax8.set_xlabel('Time Step')
-    ax8.set_ylabel('GNSS Bias')
-    ax8.set_title('GNSS Bias Over Time')
-    ax8.legend()
-
-
 
     # Adjust layout and show plot
     plt.tight_layout()

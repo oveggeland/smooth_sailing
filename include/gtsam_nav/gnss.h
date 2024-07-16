@@ -6,92 +6,20 @@
 #include <gtsam/base/Vector.h>
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/nonlinear/NonlinearFactor.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/slam/BetweenFactor.h>
 
 #include "yaml-cpp/yaml.h"
 
 #include "sensor_msgs/NavSatFix.h"
 
+#include "gtsam_nav/gnssFactor.h"
+#include "gtsam_nav/common.h"
+
 using namespace std;
 using namespace gtsam;
 
-
-class BiasedGNSSFactor: public NoiseModelFactor2<Pose3, Point2> {
-
-  private:
-
-    typedef BiasedGNSSFactor This;
-    typedef NoiseModelFactor2<Pose3, Point2> Base;
-
-    Point2 measured_; /** The measurement */
-
-  public:
-
-    // shorthand for a smart pointer to a factor
-    typedef boost::shared_ptr<BiasedGNSSFactor> shared_ptr;
-
-    /** default constructor - only use for serialization */
-    BiasedGNSSFactor() {}
-
-    /** Constructor */
-    BiasedGNSSFactor(Key posekey, Key biaskey, const Point2 measured,
-        const SharedNoiseModel& model) :
-      Base(model, posekey, biaskey), measured_(measured) {
-    }
-
-    ~BiasedGNSSFactor() override {}
-
-    /** implement functions needed for Testable */
-
-    /** print */
-    void print(const std::string& s, const KeyFormatter& keyFormatter = DefaultKeyFormatter) const override {
-      std::cout << s << "BiasedGNSSFactor("
-          << keyFormatter(this->key<1>()) << ","
-          << keyFormatter(this->key<2>()) << ")\n"
-          << "  measured: " << measured_.transpose() << std::endl;
-      this->noiseModel_->print("  noise model: ");
-    }
-
-    /** equals */
-    bool equals(const NonlinearFactor& expected, double tol=1e-9) const override {
-      const This *e =  dynamic_cast<const This*> (&expected);
-      return e != nullptr && Base::equals(*e, tol) && traits<Point2>::Equals(this->measured_, e->measured_, tol);
-    }
-
-    /** implement functions needed to derive from Factor */
-
-    /** vector of errors */
-    Vector evaluateError(const Pose3& pose, const Point2& bias,
-        boost::optional<Matrix&> H1 = boost::none, boost::optional<Matrix&> H2 =
-            boost::none) const override {
-
-      if (H1 || H2){
-        H1->resize(2,6); // jacobian wrt pose
-        (*H1) << Z_3x3.block(0, 0, 2, 3),  pose.rotation().matrix().block(0, 0, 2, 3);
-        H2->resize(2,2); // jacobian wrt bias
-        (*H2) << I_2x2;
-      }
-      return pose.translation().head<2>() + bias - measured_;
-    }
-
-    /** return the measured */
-    const Point2 measured() const {
-      return measured_;
-    }
-
-  private:
-
-    /** Serialization function */
-    friend class boost::serialization::access;
-    template<class ARCHIVE>
-    void serialize(ARCHIVE & ar, const unsigned int /*version*/) {
-      // NoiseModelFactor2 instead of NoiseModelFactorN for backward compatibility
-      ar & boost::serialization::make_nvp("NoiseModelFactor2",
-          boost::serialization::base_object<Base>(*this));
-      ar & BOOST_SERIALIZATION_NVP(measured_);
-    }
-  }; // \class BiasedGNSSFactor
-
+typedef sensor_msgs::NavSatFix::ConstPtr p_gnss_msg;
 
 class GNSSHandle{
     public:
@@ -99,17 +27,14 @@ class GNSSHandle{
         GNSSHandle(){};
         GNSSHandle(const YAML::Node &config);
 
-        Vector2 projectCartesian(sensor_msgs::NavSatFix::ConstPtr msg); // Retrieve local cartesian coordinates from navsatfix message
-        BetweenFactor<Vector2> getBiasFactor(Vector2 prev_bias, Key i, Key j);
-        BiasedGNSSFactor getCorrectionFactor(Key i, Key j, Vector2 meas);
+        Point2 getMeasurement(p_gnss_msg);
+
+        GNSSFactor getCorrectionFactor(Point2 xy, int correction_count);
 
     private:
         // Noise parameters
-        double bias_rw_sigma;
-        double bias_decay;
         double meas_sigma;
 
-        noiseModel::Isotropic::shared_ptr bias_noise;
         noiseModel::Isotropic::shared_ptr correction_noise;
 
         // Projection parameters

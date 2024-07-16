@@ -23,7 +23,7 @@ public:
         : NoiseModelFactor1<Pose3>(noiseModel, poseKey), altitude_measurement_(altitude_measurement) {}
 
     // Evaluate function
-    virtual Vector evaluateError(const Pose3& pose, boost::optional<Matrix&> H = boost::none) const override {
+    virtual Vector evaluateError(const Pose3& pose, OptionalMatrixType H) const override {
         // Calculate altitude from pose
         double altitude = pose.translation().z();
 
@@ -33,17 +33,11 @@ public:
         // Compute Jacobian if requested
         if (H) {
             // Numerical differentiation to compute Jacobian
-            *H = numericalDerivative11<Vector, Pose3>(std::function<Vector(const Pose3&)>([this](const Pose3& p) {
-                return evaluateError(p);
-            }), pose);
+            H->resize(1,6); // jacobian wrt pose
+            (*H) << 0, 0, 0, pose.rotation().matrix().block(2, 0, 1, 3);
         }
 
         return (Vector(1) << error).finished();
-    }
-
-    // Static create function for convenient factor creation
-    static boost::shared_ptr<AltitudeFactor> Create(Key poseKey, double altitude_measurement, const SharedNoiseModel& noiseModel) {
-        return boost::make_shared<AltitudeFactor>(poseKey, altitude_measurement, noiseModel);
     }
 };
 

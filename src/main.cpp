@@ -5,22 +5,21 @@
 
 #include "yaml-cpp/yaml.h"
 
-#include "gtsam_nav/graph.h"
+#include "gtsam_nav/IceNav.h"
 
 using namespace std;
-
 
 int main(int argc, char **argv)
 {    
     // Initialize node
-    ros::init(argc, argv, "navigation");
+    ros::init(argc, argv, "rosbag_nav_node");
 
-    // Try to read yaml files
+    // Navigation object
     const YAML::Node config = YAML::LoadFile("/home/oskar/navigation/src/gtsam_nav/cfg/params.yaml");
-
-    // Graph handle
-    GraphHandle graph_handle = GraphHandle(config);
-
+    cout << "init" << endl;
+    IceNav ice_nav = IceNav(config);
+    cout << "icenav is init" << endl;
+    
     // Open bag
     rosbag::Bag bag(config["in_file"].as<std::string>().c_str());  // BagMode is Read by default
 
@@ -51,22 +50,17 @@ int main(int argc, char **argv)
         // Sort by message type
         msg_type = m.getDataType();
         if (msg_type == "sensor_msgs/Imu"){
-            graph_handle.newImuMsg(m.instantiate<sensor_msgs::Imu>());
+            ice_nav.newImuMsg(m.instantiate<sensor_msgs::Imu>());
         }
 
         else if (msg_type == "sensor_msgs/NavSatFix"){
-            graph_handle.newGNSSMsg(m.instantiate<sensor_msgs::NavSatFix>());
+            ice_nav.newGNSSMsg(m.instantiate<sensor_msgs::NavSatFix>());
         }
-
     }
 
-    // Close bag and delete graph handle (why not)
+    // Close up shop
     bag.close();
-    
-    //Save trajectory
-    ROS_INFO_STREAM("Finished bag file, writing navigation results to file: " << config["out_file"].as<std::string>());
-    ofstream outputFile(config["out_file"].as<std::string>().c_str());
-    graph_handle.writeResults(outputFile);
+    ice_nav.finish();
 
     return 0;
 }

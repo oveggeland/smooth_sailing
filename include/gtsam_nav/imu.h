@@ -10,12 +10,13 @@
 
 #include "yaml-cpp/yaml.h"
 
+typedef sensor_msgs::Imu::ConstPtr p_imu_msg;
+
 using namespace std;
 using namespace gtsam;
 
-Vector3 getAcc(sensor_msgs::Imu::ConstPtr msg);
-Vector3 getRate(sensor_msgs::Imu::ConstPtr msg);
-
+Vector3 getAcc(p_imu_msg msg);
+Vector3 getRate(p_imu_msg msg);
 
 class IMUHandle{
     public:
@@ -23,19 +24,28 @@ class IMUHandle{
         IMUHandle(){};
         IMUHandle(const YAML::Node &config);
 
+        void resetIntegration(double ts, imuBias::ConstantBias bias=imuBias::ConstantBias());
 
-        void integrateMeasurement(double dt); // Use last measurement available
-        void integrateMeasurement(sensor_msgs::Imu::ConstPtr msg, double dt);
-        NavState predict(NavState state, imuBias::ConstantBias bias);
-        void resetIntegrationAndSetBias(imuBias::ConstantBias bias);
+        void integrate(p_imu_msg msg);
+        CombinedImuFactor finishIntegration(double ts_correction, int correction_count);
 
-        CombinedImuFactor getIMUFactor(Key xi, Key vi, Key bi, Key xj, Key vj, Key bj);
+        NavState predict(NavState prev_state, imuBias::ConstantBias prev_bias);
 
-        Rot3 getInitialOrientation(sensor_msgs::Imu::ConstPtr msg);
+        Rot3 getInitialRotation(p_imu_msg msg);
 
-        boost::shared_ptr<gtsam::PreintegratedCombinedMeasurements::Params> getPreintegrationParams();
+        bool isInit(){return is_init_;};
 
     private:
+        std::shared_ptr<PreintegratedCombinedMeasurements::Params> getPreintegrationParams();
+
+        // Control
+        bool is_init_;
+        Vector3 prev_acc_;
+        Vector3 prev_rate_;
+        double ts_head_; // Head of integration measurement 
+
+        std::shared_ptr<PreintegrationType> preintegrated;
+
         // Parameters
         double gravity_norm_;
         double initial_heading;
@@ -44,12 +54,6 @@ class IMUHandle{
         double gyro_noise_sigma;
         double accel_bias_rw_sigma;
         double gyro_bias_rw_sigma;
-
-        // Pre-integration
-        Vector3 prev_acc;
-        Vector3 prev_rate;
-
-        std::shared_ptr<PreintegrationType> preintegrated;
 };
 
 #endif
