@@ -21,7 +21,7 @@ Vector3 getRate(sensor_msgs::Imu::ConstPtr msg){
 IMUHandle::IMUHandle(const YAML::Node &config){
     // Import parameters from yaml
     gravity_norm_ = config["gravity_norm"].as<double>();
-    initial_heading = DEG2RAD*config["initial_heading"].as<double>();
+    initial_heading = config["initial_heading"].as<double>();
 
     accel_noise_sigma = config["imu_accel_noise_sigma"].as<double>();
     gyro_noise_sigma = config["imu_gyro_noise_sigma"].as<double>();

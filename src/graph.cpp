@@ -15,7 +15,7 @@ void GraphHandle::initialize(){
     Vector3 initial_pos_sigma = Vector3::Map(config["initial_pos_sigma"].as<std::vector<double>>().data(), 3);
     Vector3 initial_vel_sigma = Vector3::Map(config["initial_vel_sigma"].as<std::vector<double>>().data(), 3);
     
-    Vector3 initial_euler_sigma = DEG2RAD*Vector::Map(config["initial_euler_sigma"].as<std::vector<double>>().data(), 3);
+    Vector3 initial_euler_sigma = Vector::Map(config["initial_euler_sigma"].as<std::vector<double>>().data(), 3);
     double initial_acc_bias_sigma = config["initial_acc_bias_sigma"].as<double>();
     double initial_gyro_bias_sigma = config["initial_gyro_bias_sigma"].as<double>();
 
@@ -43,8 +43,11 @@ void GraphHandle::addNewValues(const NavState state, const imuBias::ConstantBias
     values_.insert(B(correction_count), bias);
 }
 
-void GraphHandle::optimizeAndUpdateValues(){
-    LevenbergMarquardtOptimizer optimizer(graph, values_);
+void GraphHandle::optimizeAndUpdateValues(bool verbose){
+    LevenbergMarquardtParams p;
+    if (verbose) p.setVerbosityLM("SUMMARY");
+
+    LevenbergMarquardtOptimizer optimizer(graph, values_, p);
     values_ = optimizer.optimize();
 }
 

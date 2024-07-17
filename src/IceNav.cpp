@@ -48,7 +48,7 @@ void IceNav::newCorrection(double ts_correction){
     cout << "Add IMU factor between " << correction_count_ - 1 << " and " << correction_count_ << endl;
 
     // Add dummy altitude factor
-    if (correction_count_ % 10 == 1){
+    if (correction_count_ % 1 == 0){
         auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, 1));
         graph_handle.addFactor(altitudeFactor);
         cout << "Adding altitude factor at " << correction_count_ << endl;
@@ -56,14 +56,12 @@ void IceNav::newCorrection(double ts_correction){
 
     // Propogate to get new initial values
     state_ = imu_handle.predict(state_, bias_);
-
-    // graph_ha
+    
     graph_handle.addNewValues(state_, bias_, correction_count_);
 
-//    if (correction_count_ % 2 == 1){
     graph_handle.optimizeAndUpdateValues();
     graph_handle.fromValues(state_, bias_, correction_count_);
-//    }
+    
     imu_handle.resetIntegration(ts_correction, bias_);
 
     // Control variables
@@ -75,8 +73,11 @@ void IceNav::checkInit(double ts){
     if (gnss_init_ && imu_init_){
         is_init_ = true;
         ts_head_ = ts;
+        
         imu_handle.resetIntegration(ts);
+
         graph_handle.initialize();
+        graph_handle.fromValues(state_, bias_, 0);
 
         correction_count_ = 1;
     }
@@ -84,6 +85,6 @@ void IceNav::checkInit(double ts){
 
 
 void IceNav::finish(){
-    graph_handle.optimizeAndUpdateValues();
+    graph_handle.optimizeAndUpdateValues(true);
     graph_handle.writeResults(correction_count_);
 }
