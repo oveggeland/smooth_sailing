@@ -1,22 +1,22 @@
-in_file: "/home/oskar/navigation/src/gtsam_nav/data/cooked.bag"
+in_file: "/home/oskar/navigation/src/gtsam_nav/data/Raindrops/cooked.bag"
 out_file: "/home/oskar/navigation/src/gtsam_nav/data/traj.txt"
 max_time_interval: 120
 
 gravity_norm: 9.831 # Norm in m/s^2, sign and reference frame is sorted in imu.cpp
-initial_heading: 0 # Rads
+initial_heading: 1 # Rads
 
 # Uncertanties on initial values
 initial_pos_sigma: [2, 2, 1]
 initial_vel_sigma: [2, 2, 0.1]
-initial_euler_sigma: [1.5, 1.5, 1.5] # Rads
+initial_euler_sigma: [20, 20, 20] # Rads
 initial_acc_bias_sigma: 1.0e-2
 initial_gyro_bias_sigma: 1.0e-3 # TODO: Why is it trying to force us to huge bias?
 
 # IMU noise parameters
 imu_accel_noise_sigma: 3.0e-3         # Accelerometer noise (continous) TODO: HUGE NOISE DOES NOT AFFECT RESULT, INDICATING THAT LOWER THAN e-4, other things are more prominent
 imu_gyro_noise_sigma: 2.0e-4          # Gyro noise (continous)
-imu_accel_bias_rw_sigma: 1.0e-5       # No bias drift
-imu_gyro_bias_rw_sigma: 1.0e-5        # No bias drift
+imu_accel_bias_rw_sigma: 1.0e-9       # No bias drift
+imu_gyro_bias_rw_sigma: 1.0e-9        # No bias drift
 
 # GNSS stuff
 gnss_meas_sigma: 2                 # TODO: Sigma of measurement error

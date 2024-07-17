@@ -14,24 +14,23 @@ void GraphHandle::initialize(){
 
     Vector3 initial_pos_sigma = Vector3::Map(config["initial_pos_sigma"].as<std::vector<double>>().data(), 3);
     Vector3 initial_vel_sigma = Vector3::Map(config["initial_vel_sigma"].as<std::vector<double>>().data(), 3);
-    
     Vector3 initial_euler_sigma = Vector::Map(config["initial_euler_sigma"].as<std::vector<double>>().data(), 3);
+
     double initial_acc_bias_sigma = config["initial_acc_bias_sigma"].as<double>();
     double initial_gyro_bias_sigma = config["initial_gyro_bias_sigma"].as<double>();
 
-   // Assemble prior noise model and add it the graph.`
+    // Assemble prior noise model and add it the graph.`
     auto pose_noise_model = noiseModel::Diagonal::Sigmas((Vector(6) << initial_euler_sigma, initial_pos_sigma).finished());
     auto velocity_noise_model = noiseModel::Diagonal::Sigmas(initial_vel_sigma);
     auto bias_noise_model = noiseModel::Diagonal::Sigmas(
         (Vector(6) <<   initial_acc_bias_sigma, initial_acc_bias_sigma, initial_acc_bias_sigma, 
                         initial_gyro_bias_sigma, initial_gyro_bias_sigma, initial_gyro_bias_sigma).finished()); 
-    Pose3 prior_pose(prior_rot, prior_pos);
 
-    values_.insert(X(0), prior_pose);
+    values_.insert(X(0), Pose3(prior_rot, prior_pos));
     values_.insert(V(0), prior_vel);
     values_.insert(B(0), prior_imu_bias);
 
-    graph.addPrior(X(0), prior_pose, pose_noise_model);
+    graph.addPrior(X(0), Pose3(prior_rot, prior_pos), pose_noise_model);
     graph.addPrior(V(0), prior_vel, velocity_noise_model);
     graph.addPrior(B(0), prior_imu_bias, bias_noise_model);
     cout << "Adding priors at " << 0 << endl;

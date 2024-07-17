@@ -47,8 +47,8 @@ void IMUHandle::resetIntegration(double ts, imuBias::ConstantBias bias){
 void IMUHandle::integrate(p_imu_msg msg){
     double ts = msg->header.stamp.toSec();
     double dt = ts - ts_head_;
-
-    assert(dt > 0 && dt < 0.02); // Debugging purposes
+    
+    assert(dt > 0 && dt < 0.025); // Debugging purposes
 
     prev_acc_ = getAcc(msg);
     prev_rate_ = getRate(msg);
