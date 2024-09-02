@@ -54,7 +54,7 @@ class GNSSFactor: public NoiseModelFactor1<Pose3> {
 
     /** vector of errors */
     Vector evaluateError(const Pose3& pose,
-        OptionalMatrixType H) const override {
+        boost::optional<Matrix&> H) const override {
 
       if (H){
         H->resize(2,6); // jacobian wrt pose
@@ -119,7 +119,7 @@ class BiasedGNSSFactor: public NoiseModelFactor2<Pose3, Point2> {
 
     /** vector of errors */
     Vector evaluateError(const Pose3& pose, const Point2& bias,
-        OptionalMatrixType H1, OptionalMatrixType H2) const override {
+        boost::optional<Matrix&> H1, boost::optional<Matrix&> H2) const override {
 
       if (H1 || H2){
         H1->resize(2,6); // jacobian wrt pose

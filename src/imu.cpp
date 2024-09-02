@@ -94,7 +94,7 @@ Rot3 IMUHandle::getInitialRotation(p_imu_msg msg){
     return R0;
 }
 
-shared_ptr<PreintegratedCombinedMeasurements::Params> IMUHandle::getPreintegrationParams() {
+boost::shared_ptr<gtsam::PreintegrationCombinedParams> IMUHandle::getPreintegrationParams() {
   // We use the sensor specs to build the noise model for the IMU factor.
   Matrix33 measured_acc_cov = I_3x3 * pow(accel_noise_sigma, 2);
   Matrix33 measured_omega_cov = I_3x3 * pow(gyro_noise_sigma, 2);

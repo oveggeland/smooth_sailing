@@ -23,7 +23,7 @@ public:
         : NoiseModelFactor1<Pose3>(noiseModel, poseKey), altitude_measurement_(altitude_measurement) {}
 
     // Evaluate function
-    virtual Vector evaluateError(const Pose3& pose, OptionalMatrixType H) const override {
+    virtual Vector evaluateError(const Pose3& pose, boost::optional<Matrix&> H) const override {
         // Calculate altitude from pose
         double altitude = pose.translation().z();
 

@@ -36,7 +36,7 @@ class IMUHandle{
         bool isInit(){return is_init_;};
 
     private:
-        std::shared_ptr<PreintegratedCombinedMeasurements::Params> getPreintegrationParams();
+        boost::shared_ptr<gtsam::PreintegrationCombinedParams> getPreintegrationParams();
 
         // Control
         bool is_init_;
