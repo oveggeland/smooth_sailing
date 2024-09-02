@@ -33,5 +33,6 @@ target_link_libraries(navigation gtsam proj yaml-cpp ${catkin_LIBRARIES})
 # Mark executable scripts (Python etc.) for installation
 install(PROGRAMS
   scripts/plot_trajectory.py
+  scripts/cookbook.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}/scripts
 )
