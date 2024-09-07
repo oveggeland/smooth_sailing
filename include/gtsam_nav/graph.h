@@ -14,6 +14,8 @@
 #include "yaml-cpp/yaml.h"
 
 #include "gtsam_nav/common.h"
+#include "gtsam_nav/eulerFactor.h"
+#include "gtsam_nav/rollPitchFactor.h"
 
 using namespace gtsam;
 using namespace std;
