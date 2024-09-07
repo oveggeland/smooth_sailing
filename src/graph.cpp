@@ -13,7 +13,6 @@ void GraphHandle::initialize(){
     graph = NonlinearFactorGraph(); // Initialize factor graph
 
     Vector3 initial_pos_sigma = Vector3::Map(config["initial_pos_sigma"].as<std::vector<double>>().data(), 3);
-    Vector3 initial_vel_sigma = Vector3::Map(config["initial_vel_sigma"].as<std::vector<double>>().data(), 3);
     Vector3 initial_euler_sigma = Vector::Map(config["initial_euler_sigma"].as<std::vector<double>>().data(), 3);
 
     double initial_acc_bias_sigma = config["initial_acc_bias_sigma"].as<double>();
@@ -21,7 +20,6 @@ void GraphHandle::initialize(){
 
     // Assemble prior noise model and add it the graph.`
     auto pose_noise_model = noiseModel::Diagonal::Sigmas((Vector(6) << initial_euler_sigma, initial_pos_sigma).finished());
-    auto velocity_noise_model = noiseModel::Diagonal::Sigmas(initial_vel_sigma);
     auto bias_noise_model = noiseModel::Diagonal::Sigmas(
         (Vector(6) <<   initial_acc_bias_sigma, initial_acc_bias_sigma, initial_acc_bias_sigma, 
                         initial_gyro_bias_sigma, initial_gyro_bias_sigma, initial_gyro_bias_sigma).finished()); 
@@ -31,7 +29,6 @@ void GraphHandle::initialize(){
     values_.insert(B(0), prior_imu_bias);
 
     graph.addPrior(X(0), Pose3(prior_rot, prior_pos), pose_noise_model);
-    graph.addPrior(V(0), prior_vel, velocity_noise_model);
     graph.addPrior(B(0), prior_imu_bias, bias_noise_model);
     cout << "Adding priors at " << 0 << endl;
 }
@@ -66,10 +63,10 @@ void GraphHandle::initializeRotation(Rot3 R0){
     prior_rot = R0;
 }
 
-void GraphHandle::writeResults(int correction_count_){
+void GraphHandle::writeResults(int correction_count_, vector<double> & correction_stamps_){
     ofstream f("/home/oskar/navigation/src/gtsam_nav/data/traj.txt");
 
-    f << "x, y, z, vx, vy, vz, r, p, y, bax, bay, baz, bgx, bgy, bgz" << endl;
+    f << "t, x, y, z, vx, vy, vz, r, p, y, bax, bay, baz, bgx, bgy, bgz" << endl;
     Pose3 pose;
     Vector3 x;
     Vector3 ypr;
@@ -84,6 +81,7 @@ void GraphHandle::writeResults(int correction_count_){
         v = values_.at<Vector3>(V(i));
         b = values_.at<imuBias::ConstantBias>(B(i)).vector();
 
+        f << correction_stamps_[i] << ", ";
         f << x[0] << ", " << x[1] << ", " << x[2] << ", ";
         f << v[0] << ", " << v[1] << ", " << v[2] << ", ";
         f << ypr[2] << ", " << ypr[1] << ", " << ypr[0] << ", ";

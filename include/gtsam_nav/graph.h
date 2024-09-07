@@ -35,7 +35,7 @@ class GraphHandle{
         void fromValues(NavState &state, imuBias::ConstantBias &bias, const int correction_count);
 
         // Write
-        void writeResults(int correction_count);
+        void writeResults(int correction_count, vector<double> & correction_stamps_);
 
         // Initializers
         void initialize();
