@@ -34,6 +34,7 @@ class IceNav{
         bool is_init_ = false;
 
         int correction_count_;
+        vector<double> correction_stamps_;
 
         // Handle for factor graph
         GraphHandle graph_handle;
@@ -47,6 +48,10 @@ class IceNav{
         // Handle for different sensors
         IMUHandle imu_handle;
         GNSSHandle gnss_handle;
+
+        // Virtual height
+        int virtual_height_interval_;
+        double virtual_height_sigma_;
 
     
 };

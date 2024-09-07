@@ -54,6 +54,8 @@ class IMUHandle{
         double gyro_noise_sigma;
         double accel_bias_rw_sigma;
         double gyro_bias_rw_sigma;
+
+        double acc_scale_;
 };
 
 #endif

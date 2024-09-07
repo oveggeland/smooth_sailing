@@ -5,6 +5,9 @@ IceNav::IceNav(const YAML::Node& config){
     graph_handle = GraphHandle(config);
     imu_handle = IMUHandle(config);
     gnss_handle = GNSSHandle(config);
+
+    virtual_height_interval_ = config["virtual_height_interval"].as<int>();
+    virtual_height_sigma_ = config["virtual_height_sigma"].as<double>();
 }
 
 // Entry point for new IMU measurements
@@ -42,14 +45,16 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
 }
 
 void IceNav::newCorrection(double ts_correction){
+    correction_stamps_.push_back(ts_correction);
+
     // Add IMU factor between states
     auto imu_factor = imu_handle.finishIntegration(ts_correction, correction_count_);
     graph_handle.addFactor(imu_factor);
     cout << "Add IMU factor between " << correction_count_ - 1 << " and " << correction_count_ << endl;
 
     // Add dummy altitude factor
-    if (correction_count_ % 1 == 0){
-        auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, 1));
+    if (correction_count_ % virtual_height_interval_ == 0){
+        auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
         graph_handle.addFactor(altitudeFactor);
         cout << "Adding altitude factor at " << correction_count_ << endl;
     }
@@ -61,7 +66,6 @@ void IceNav::newCorrection(double ts_correction){
 
     graph_handle.optimizeAndUpdateValues();
     graph_handle.fromValues(state_, bias_, correction_count_);
-    
     imu_handle.resetIntegration(ts_correction, bias_);
 
     // Control variables
@@ -73,6 +77,8 @@ void IceNav::checkInit(double ts){
     if (gnss_init_ && imu_init_){
         is_init_ = true;
         ts_head_ = ts;
+
+        correction_stamps_.push_back(ts);
         
         imu_handle.resetIntegration(ts);
 
@@ -86,5 +92,5 @@ void IceNav::checkInit(double ts){
 
 void IceNav::finish(){
     graph_handle.optimizeAndUpdateValues(true);
-    graph_handle.writeResults(correction_count_);
+    graph_handle.writeResults(correction_count_, correction_stamps_);
 }

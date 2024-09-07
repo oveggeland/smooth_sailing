@@ -28,6 +28,8 @@ IMUHandle::IMUHandle(const YAML::Node &config){
     accel_bias_rw_sigma = config["imu_accel_bias_rw_sigma"].as<double>();
     gyro_bias_rw_sigma = config["imu_gyro_bias_rw_sigma"].as<double>();
 
+    acc_scale_ = config["imu_acc_scale"].as<double>();
+
     // Pre-integration
     auto p = getPreintegrationParams();
 
@@ -47,13 +49,15 @@ void IMUHandle::resetIntegration(double ts, imuBias::ConstantBias bias){
 void IMUHandle::integrate(p_imu_msg msg){
     double ts = msg->header.stamp.toSec();
     double dt = ts - ts_head_;
-    
-    assert(dt > 0 && dt < 0.025); // Debugging purposes
 
-    prev_acc_ = getAcc(msg);
+    prev_acc_ = acc_scale_* getAcc(msg);
     prev_rate_ = getRate(msg);
     ts_head_ = ts;
 
+    if (dt > 0.02){
+        cout << "DT = " << dt << " > 0.02, skipping integration" << endl;
+        return;
+    }
     preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
 }
 
@@ -64,7 +68,12 @@ CombinedImuFactor IMUHandle::finishIntegration(double ts_correction, int correct
     double dt = ts_correction - ts_head_;
     assert(dt > 0 && dt < 0.02);
 
-    preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
+    if (dt > 0.02){
+        cout << "DT = " << dt << " > 0.02, skipping integration" << endl;
+    }
+    else{
+        preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
+    }
 
     auto preint_imu = dynamic_cast<const PreintegratedCombinedMeasurements&>(*preintegrated);
     return CombinedImuFactor(
