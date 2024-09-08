@@ -8,14 +8,15 @@ import numpy as np
 
 if __name__ == "__main__":
     # Load the CSV file without a header
-    file_path = '/home/oskar/navigation/src/gtsam_nav/data/traj.txt'
+    file_path = '/home/oskar/navigation/src/smooth_sailing/data/traj.txt'
     data = pd.read_csv(file_path)
 
     # Extract the position data by index using NumPy arrays
     data_np = data.to_numpy()
-    x = data_np[:, 0]  # position_x
-    y = data_np[:, 1]  # position_y
-    z = data_np[:, 2]  # position_z
+    ts = data_np[:, 0]
+    x = data_np[:, 1]  # position_x
+    y = data_np[:, 2]  # position_y
+    z = data_np[:, 3]  # position_z
 
     # Plot the 3D trajectory
     fig = plt.figure(figsize=(15, 10))
@@ -32,9 +33,9 @@ if __name__ == "__main__":
     fig.colorbar(sc, ax=ax1, label='Time Step')
 
     # Extract velocity data
-    velocity_x = data_np[:, 3]
-    velocity_y = data_np[:, 4]
-    velocity_z = data_np[:, 5]
+    velocity_x = data_np[:, 4]
+    velocity_y = data_np[:, 5]
+    velocity_z = data_np[:, 6]
 
     # Plot velocity
     ax2 = fig.add_subplot(422)
@@ -47,9 +48,9 @@ if __name__ == "__main__":
     ax2.legend()
 
     # Extract orientation data (roll, pitch, yaw)
-    roll = data_np[:, 6]
-    pitch = data_np[:, 7]
-    yaw = data_np[:, 8]
+    roll = data_np[:, 7]
+    pitch = data_np[:, 8]
+    yaw = data_np[:, 9]
 
     # Plot orientation
     ax3 = fig.add_subplot(423)
@@ -62,9 +63,9 @@ if __name__ == "__main__":
     ax3.legend()
 
     # Extract acceleration bias data
-    acc_bias_x = data_np[:, 9]
-    acc_bias_y = data_np[:, 10]
-    acc_bias_z = data_np[:, 11]
+    acc_bias_x = data_np[:, 10]
+    acc_bias_y = data_np[:, 11]
+    acc_bias_z = data_np[:, 12]
 
     # Plot acceleration bias
     ax4 = fig.add_subplot(424)
@@ -77,9 +78,9 @@ if __name__ == "__main__":
     ax4.legend()
 
     # Extract gyroscope bias data
-    gyro_bias_x = data_np[:, 12]
-    gyro_bias_y = data_np[:, 13]
-    gyro_bias_z = data_np[:, 14]
+    gyro_bias_x = data_np[:, 13]
+    gyro_bias_y = data_np[:, 14]
+    gyro_bias_z = data_np[:, 15]
 
     # Plot gyroscope bias
     ax5 = fig.add_subplot(425)

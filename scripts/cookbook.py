@@ -5,7 +5,7 @@ import sys
 
 if __name__ == "__main__":
     in_bag = sys.argv[1]
-    out_bag = sys.argv[2]
+    out_bag = in_bag[:-4] + "_cooked.bag"
 
     with rosbag.Bag(out_bag, 'w') as outbag:
         for topic, msg, t in rosbag.Bag(in_bag).read_messages():

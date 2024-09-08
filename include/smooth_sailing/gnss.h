@@ -13,8 +13,8 @@
 
 #include "sensor_msgs/NavSatFix.h"
 
-#include "gtsam_nav/gnssFactor.h"
-#include "gtsam_nav/common.h"
+#include "smooth_sailing/gnssFactor.h"
+#include "smooth_sailing/common.h"
 
 using namespace std;
 using namespace gtsam;

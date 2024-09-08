@@ -6,7 +6,7 @@
 #include <gtsam/navigation/ImuFactor.h>
 
 #include "sensor_msgs/Imu.h"
-#include "gtsam_nav/common.h"
+#include "smooth_sailing/common.h"
 
 #include "yaml-cpp/yaml.h"
 

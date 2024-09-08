@@ -93,12 +93,13 @@ def prepare_ship_data(bagpath, outpath):
 if __name__ == "__main__":
     # Load the CSV file without a header
     ship_data_bag = "/home/oskar/navigation/data/right/motion_1.bag"
-    ship_data_csv = "/home/oskar/navigation/src/gtsam_nav/data/ship_traj.txt"
+    #ship_data_bag = "/home/oskar/navigation/data/right/ice_motion.bag"
+    ship_data_csv = "/home/oskar/navigation/src/smooth_sailing/data/ship_traj.txt"
     #prepare_ship_data(ship_data_bag, ship_data_csv)
 
     ship_data = np.loadtxt(ship_data_csv)
 
-    nav_data_path = "/home/oskar/navigation/src/gtsam_nav/data/traj.txt"
+    nav_data_path = "/home/oskar/navigation/src/smooth_sailing/data/traj.txt"
     nav_data = pd.read_csv(nav_data_path, sep=",")
     
     compare_navigation(ship_data, nav_data)

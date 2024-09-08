@@ -1,10 +1,10 @@
 #ifndef ICENAV_H
 #define ICENAV_H
 
-#include "gtsam_nav/gnss.h"
-#include "gtsam_nav/imu.h"
-#include "gtsam_nav/altitudeFactor.h"
-#include "gtsam_nav/graph.h"
+#include "smooth_sailing/gnss.h"
+#include "smooth_sailing/imu.h"
+#include "smooth_sailing/altitudeFactor.h"
+#include "smooth_sailing/graph.h"
 
 #include "yaml-cpp/yaml.h"
 

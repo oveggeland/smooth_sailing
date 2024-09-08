@@ -14,11 +14,11 @@
 
 #include "yaml-cpp/yaml.h"
 
-#include "gtsam_nav/common.h"
-#include "gtsam_nav/eulerFactor.h"
-#include "gtsam_nav/rollPitchFactor.h"
-#include "gtsam_nav/altitudeFactor.h"
-#include "gtsam_nav/gnssFactor.h"
+#include "smooth_sailing/common.h"
+#include "smooth_sailing/eulerFactor.h"
+#include "smooth_sailing/rollPitchFactor.h"
+#include "smooth_sailing/altitudeFactor.h"
+#include "smooth_sailing/gnssFactor.h"
 
 using namespace gtsam;
 using namespace std;

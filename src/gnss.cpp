@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "gtsam_nav/gnss.h"
+#include "smooth_sailing/gnss.h"
 using namespace std;
 
 

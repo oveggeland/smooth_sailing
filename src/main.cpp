@@ -5,23 +5,34 @@
 
 #include "yaml-cpp/yaml.h"
 
-#include "gtsam_nav/IceNav.h"
+#include "smooth_sailing/IceNav.h"
 
 using namespace std;
 
 int main(int argc, char **argv)
-{    
+{
     // Initialize node
-    ros::init(argc, argv, "rosbag_nav_node");
+    ros::init(argc, argv, "rosbag_navigation_node");
+    ros::NodeHandle nh;
+    ROS_INFO("Initialized navigation node");
 
-    // Navigation object
-    const YAML::Node config = YAML::LoadFile("/home/oskar/navigation/src/gtsam_nav/cfg/params.yaml");
-    cout << "init" << endl;
+    // Load config
+    std::string config_file;
+    if (nh.getParam("config_file", config_file)) {
+        ROS_INFO("Using config file: %s", config_file.c_str());
+    } else {
+        ROS_WARN("Failed to get parameter 'config_file'");
+        exit(1);
+    }
+
+    const YAML::Node config = YAML::LoadFile(config_file);
+
+    // Initialize the navigation 
     IceNav ice_nav = IceNav(config);
-    cout << "icenav is init" << endl;
     
     // Open bag
-    rosbag::Bag bag(config["in_file"].as<std::string>().c_str());  // BagMode is Read by default
+    std::string bagPath = config["workspace"].as<std::string>() + "raw.bag";    
+    rosbag::Bag bag(bagPath.c_str());  // BagMode is Read by default
 
     // Iterate over bag file and build factors
     double t0 = 0.0;

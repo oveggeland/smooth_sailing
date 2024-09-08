@@ -1,4 +1,4 @@
-#include "gtsam_nav/graph.h"
+#include "smooth_sailing/graph.h"
 
 
 // Constructor
@@ -74,9 +74,11 @@ void GraphHandle::initializeRotation(Rot3 R0){
 }
 
 void GraphHandle::writeResults(int correction_count_, vector<double> & correction_stamps_){
-    ofstream f("/home/oskar/navigation/src/gtsam_nav/data/traj.txt");
+    std::string ws = config["workspace"].as<std::string>();
+    std::string out_file = ws + "nav.txt";
+    ofstream f(out_file);
 
-    f << "t, x, y, z, vx, vy, vz, r, p, y, bax, bay, baz, bgx, bgy, bgz" << endl;
+    f << "ts,x,y,z,vx,vy,vz,roll,pitch,yaw,bax,bay,baz,bgx,bgy,bgz" << endl;
     Pose3 pose;
     Vector3 x;
     Vector3 ypr;
@@ -91,10 +93,10 @@ void GraphHandle::writeResults(int correction_count_, vector<double> & correctio
         v = values_.at<Vector3>(V(i));
         b = values_.at<imuBias::ConstantBias>(B(i)).vector();
 
-        f << correction_stamps_[i] << ", ";
-        f << x[0] << ", " << x[1] << ", " << x[2] << ", ";
-        f << v[0] << ", " << v[1] << ", " << v[2] << ", ";
-        f << ypr[2] << ", " << ypr[1] << ", " << ypr[0] << ", ";
-        f << b[0] << ", " << b[1] << ", " << b[2] << ", " << b[3] << ", " << b[4] << ", " << b[5] << endl;
+        f << correction_stamps_[i] << ",";
+        f << x[0] << "," << x[1] << "," << x[2] << ",";
+        f << v[0] << "," << v[1] << "," << v[2] << ",";
+        f << ypr[2] << "," << ypr[1] << "," << ypr[0] << ",";
+        f << b[0] << "," << b[1] << "," << b[2] << "," << b[3] << "," << b[4] << "," << b[5] << endl;
     }
 }

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(gtsam_nav)
+project(smooth_sailing)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -32,7 +32,6 @@ target_link_libraries(navigation gtsam proj yaml-cpp ${catkin_LIBRARIES})
 
 # Mark executable scripts (Python etc.) for installation
 install(PROGRAMS
-  scripts/plot_trajectory.py
-  scripts/cookbook.py
+  scripts/navigation_evaluation.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}/scripts
 )

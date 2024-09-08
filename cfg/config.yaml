@@ -1,12 +1,15 @@
-in_file: "/home/oskar/navigation/data/left/ice_motion.bag" #Good baseline for left system
+workspace: "/home/oskar/navigation/data/ws_left2/" #Good baseline for left system
+
 #in_file: "/home/oskar/navigation/data/right/motion_1.bag" #Good baseline for right system
 #in_file: "/home/oskar/navigation/data/right/motion2.bag"
-#in_file: "/home/oskar/navigation/src/gtsam_nav/data/Raindrops/cooked.bag" # Baseline from GoNorth23
+#in_file: "/home/oskar/navigation/src/smooth_sailing/data/Raindrops/cooked.bag" # Baseline from GoNorth23
 
-out_file: "/home/oskar/navigation/src/gtsam_nav/data/traj.txt"
 max_time_interval: 300
 
 gravity_norm: 9.831 # Norm in m/s^2, sign and reference frame is sorted in imu.cpp
+lever_arm: [0, 10, -17]
+
+
 initial_heading: 0 # Rads
 
 # Uncertanties on initial values

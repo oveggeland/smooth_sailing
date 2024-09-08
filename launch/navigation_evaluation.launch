@@ -1,0 +1,7 @@
+<launch>	
+	<param name="config_file" type="str" value="/home/oskar/navigation/src/smooth_sailing/cfg/config.yaml"/>
+
+	<node name="navigation_evaluation" pkg="smooth_sailing"
+	      type="navigation_evaluation.py" required="true" respawn="false"
+	      output="screen"/>	
+</launch>

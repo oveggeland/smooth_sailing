@@ -1,4 +1,4 @@
-#include "gtsam_nav/IceNav.h"
+#include "smooth_sailing/IceNav.h"
 
 // Constructor
 IceNav::IceNav(const YAML::Node& config){

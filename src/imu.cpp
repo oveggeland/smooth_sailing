@@ -1,4 +1,4 @@
-#include "gtsam_nav/imu.h"
+#include "smooth_sailing/imu.h"
 
 // Extract accelerometer vector from Imu message
 Vector3 getAcc(sensor_msgs::Imu::ConstPtr msg){

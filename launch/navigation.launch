@@ -1,0 +1,7 @@
+<launch>	
+	<param name="config_file" type="str" value="/home/oskar/navigation/src/smooth_sailing/cfg/config.yaml"/>
+
+	<node name="blackfly_node" pkg="smooth_sailing"
+	      type="navigation" required="true" respawn="false"
+	      output="screen"/>	
+</launch>
