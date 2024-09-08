@@ -30,7 +30,8 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
     Point2 xy = gnss_handle.getMeasurement(msg);
 
     if (is_init_){
-        auto correction_factor = gnss_handle.getCorrectionFactor(xy, correction_count_);
+        //auto correction_factor = gnss_handle.getCorrectionFactor(xy, correction_count_);
+        auto correction_factor = GPSFactor(X(correction_count_), (Vector(3) << xy, 0).finished(), noiseModel::Diagonal::Sigmas(Vector3(0.5, 0.5, 1)));
         graph_handle.addFactor(correction_factor);
         cout << "Add GNSS factor at " << correction_count_ << endl;
 
@@ -55,7 +56,7 @@ void IceNav::newCorrection(double ts_correction){
     // Add dummy altitude factor
     if (correction_count_ % virtual_height_interval_ == 0){
         auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
-        graph_handle.addFactor(altitudeFactor);
+        //graph_handle.addFactor(altitudeFactor);
         cout << "Adding altitude factor at " << correction_count_ << endl;
     }
 
