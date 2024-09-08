@@ -25,19 +25,18 @@ public:
     // Evaluate function
     virtual Vector evaluateError(const Pose3& pose, boost::optional<Matrix&> H) const override {
         // Calculate altitude from pose
-        double altitude = pose.translation().z();
+        double altitude = pose.translation(H).z();
 
         // Compute error (residual)
-        double error = altitude - altitude_measurement_;
+        Vector1 error = Vector1(altitude - altitude_measurement_);
 
-        // Compute Jacobian if requested
         if (H) {
             // Numerical differentiation to compute Jacobian
-            H->resize(1,6); // jacobian wrt pose
-            (*H) << 0, 0, 0, pose.rotation().matrix().block(2, 0, 1, 3);
+            //H->resize(1, 6);
+            (*H) = H->block(2, 0, 1, 6);
         }
 
-        return (Vector(1) << error).finished();
+        return error;
     }
 };
 

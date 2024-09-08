@@ -10,12 +10,15 @@
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/navigation/AttitudeFactor.h>
 
 #include "yaml-cpp/yaml.h"
 
 #include "gtsam_nav/common.h"
 #include "gtsam_nav/eulerFactor.h"
 #include "gtsam_nav/rollPitchFactor.h"
+#include "gtsam_nav/altitudeFactor.h"
+#include "gtsam_nav/gnssFactor.h"
 
 using namespace gtsam;
 using namespace std;
@@ -44,6 +47,7 @@ class GraphHandle{
 
         void initializePlanarPosition(Vector2 p);
         void initializeRotation(Rot3 R0);
+        void setInitialAttitude(Vector3 nZ){nZ_ = nZ;};
 
     private:
         YAML::Node config;
@@ -53,6 +57,7 @@ class GraphHandle{
         Values values_; // Best guess for all states
 
         // Priors
+        Vector3 nZ_;
         Point3 prior_pos = Point3(0, 0, 0);
         Rot3 prior_rot = Rot3();
         Vector3 prior_vel = Vector3(0, 0, 0);

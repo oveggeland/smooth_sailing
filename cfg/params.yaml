@@ -1,5 +1,7 @@
-#in_file: "/home/oskar/navigation/data/left/ice_motion.bag" #Good baseline for left system
-in_file: "/home/oskar/navigation/data/right/motion_1.bag" #Good baseline for left system
+in_file: "/home/oskar/navigation/data/left/ice_motion.bag" #Good baseline for left system
+#in_file: "/home/oskar/navigation/data/right/motion_1.bag" #Good baseline for right system
+#in_file: "/home/oskar/navigation/data/right/motion2.bag"
+#in_file: "/home/oskar/navigation/src/gtsam_nav/data/Raindrops/cooked.bag" # Baseline from GoNorth23
 
 out_file: "/home/oskar/navigation/src/gtsam_nav/data/traj.txt"
 max_time_interval: 300
@@ -8,10 +10,9 @@ gravity_norm: 9.831 # Norm in m/s^2, sign and reference frame is sorted in imu.c
 initial_heading: 0 # Rads
 
 # Uncertanties on initial values
-initial_pos_sigma: [1, 1, 1] # These should be same as virtual height and gnss meas sigmas
-initial_euler_sigma: [200, 200, 200] # Some big value, this should not affect much
-initial_acc_bias_sigma: 10
-initial_gyro_bias_sigma: 10 # TODO: Why is it trying to force us to huge bias?
+initial_velocity_sigma: [2, 2, 0.05]
+initial_attitude_sigma: 0.5
+initial_imu_bias_sigma: [1, 1, 1, 1, 1, 1] # ax, ay, az, gx, gy, gz
 
 # IMU noise parameters
 imu_accel_noise_sigma: 1.0e-3         # Accelerometer noise (continous)
@@ -22,7 +23,7 @@ imu_gyro_bias_rw_sigma: 1.0e-5        # No bias drift
 imu_acc_scale: 1 # We should for sure calibrate the scale values at some point
 
 # GNSS stuff
-gnss_meas_sigma: 1                 # TODO: Sigma of measurement error
+gnss_sigma: 0.5                 # TODO: Sigma of measurement error
 
 gnss_crs_source: "EPSG:4326"
 gnss_crs_target: "EPSG:6052"

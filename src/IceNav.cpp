@@ -16,6 +16,9 @@ void IceNav::newImuMsg(p_imu_msg msg){
         imu_handle.integrate(msg);
     }
     else{
+        Vector3 nZ = getAcc(msg);
+        graph_handle.setInitialAttitude(nZ);
+
         Rot3 R0 = imu_handle.getInitialRotation(msg);
         graph_handle.initializeRotation(R0);
 

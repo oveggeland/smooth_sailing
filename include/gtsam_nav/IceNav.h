@@ -3,7 +3,7 @@
 
 #include "gtsam_nav/gnss.h"
 #include "gtsam_nav/imu.h"
-#include "gtsam_nav/lidar.h"
+#include "gtsam_nav/altitudeFactor.h"
 #include "gtsam_nav/graph.h"
 
 #include "yaml-cpp/yaml.h"

@@ -6,7 +6,7 @@ using namespace std;
 
 GNSSHandle::GNSSHandle(const YAML::Node &config){
     // Noise
-    meas_sigma = config["gnss_meas_sigma"].as<double>();
+    meas_sigma = config["gnss_sigma"].as<double>();
     correction_noise = noiseModel::Isotropic::Sigma(2, meas_sigma);
 
     // Projection parameters

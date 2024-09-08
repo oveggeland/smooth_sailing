@@ -12,25 +12,35 @@ HERE COMES ALL IMPLEMENTATION RELATED TO FACTOR GRAPH INITIALIZATION
 void GraphHandle::initialize(){
     graph = NonlinearFactorGraph(); // Initialize factor graph
 
-    Vector3 initial_pos_sigma = Vector3::Map(config["initial_pos_sigma"].as<std::vector<double>>().data(), 3);
-    Vector3 initial_euler_sigma = Vector::Map(config["initial_euler_sigma"].as<std::vector<double>>().data(), 3);
-
-    double initial_acc_bias_sigma = config["initial_acc_bias_sigma"].as<double>();
-    double initial_gyro_bias_sigma = config["initial_gyro_bias_sigma"].as<double>();
-
-    // Assemble prior noise model and add it the graph.`
-    auto pose_noise_model = noiseModel::Diagonal::Sigmas((Vector(6) << initial_euler_sigma, initial_pos_sigma).finished());
-    auto bias_noise_model = noiseModel::Diagonal::Sigmas(
-        (Vector(6) <<   initial_acc_bias_sigma, initial_acc_bias_sigma, initial_acc_bias_sigma, 
-                        initial_gyro_bias_sigma, initial_gyro_bias_sigma, initial_gyro_bias_sigma).finished()); 
-
+    // Initial values
     values_.insert(X(0), Pose3(prior_rot, prior_pos));
     values_.insert(V(0), prior_vel);
     values_.insert(B(0), prior_imu_bias);
 
-    graph.addPrior(X(0), Pose3(prior_rot, prior_pos), pose_noise_model);
+    // Prior on bias
+    auto bias_noise_model = noiseModel::Diagonal::Sigmas(Vector6::Map(config["initial_imu_bias_sigma"].as<std::vector<double>>().data(), 6)); 
     graph.addPrior(B(0), prior_imu_bias, bias_noise_model);
-    cout << "Adding priors at " << 0 << endl;
+
+
+    // Velocity prior
+    auto velocity_noise_model = noiseModel::Diagonal::Sigmas(Vector3::Map(config["initial_velocity_sigma"].as<std::vector<double>>().data(), 3)); 
+    graph.addPrior(V(0), prior_vel, velocity_noise_model);
+
+    // Prior on position
+    auto gnss_factor = GPSFactor(X(0), prior_pos, noiseModel::Diagonal::Sigmas(
+        Vector3(config["gnss_sigma"].as<double>(), 
+                config["gnss_sigma"].as<double>(), 
+                config["virtual_height_sigma"].as<double>()
+        )
+    ));
+    graph.add(gnss_factor);
+
+    // Prior on attitude. Documentation is very confusing here, regarding what should be the nav/body frame
+    auto attitudeFactor = Pose3AttitudeFactor(X(0), Unit3(0, 0, 1), 
+        noiseModel::Isotropic::Sigma(2, config["initial_attitude_sigma"].as<double>()), 
+        Unit3(-nZ_)
+    );
+    graph.add(attitudeFactor);
 }
 
 void GraphHandle::addNewValues(const NavState state, const imuBias::ConstantBias bias, const int correction_count){
