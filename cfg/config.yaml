@@ -1,4 +1,4 @@
-workspace: "/home/oskar/navigation/data/ws_left2/" #Good baseline for left system
+workspace: "/home/oskar/navigation/data/ws_right2/" #Good baseline for left system
 
 #in_file: "/home/oskar/navigation/data/right/motion_1.bag" #Good baseline for right system
 #in_file: "/home/oskar/navigation/data/right/motion2.bag"
