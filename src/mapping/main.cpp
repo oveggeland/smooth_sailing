@@ -4,6 +4,8 @@
 #include <map>
 #include <fstream>
 #include <iomanip>
+#include <algorithm>  // For std::clamp
+#include <opencv2/opencv.hpp>
 
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
@@ -88,7 +90,7 @@ Pose3 readTbl(const std::string& filename){
 
 
 
-std::map<double, Pose3> buildPoseMap(const std::string& filename){
+std::map<double, Pose3> buildLidarPoseMap(const std::string& filename, Pose3 Tbl){
     std::map<double, Pose3> poseMap;
     std::ifstream file(filename);
 
@@ -134,7 +136,7 @@ std::map<double, Pose3> buildPoseMap(const std::string& filename){
             Rot3 rotation = Rot3::RzRyRx(roll, pitch, yaw);
             Pose3(rotation, translation);
 
-            poseMap[ts] = Pose3(rotation, translation);
+            poseMap[ts] = Pose3(rotation, translation).compose(Tbl);
         }
     }
 
@@ -145,151 +147,141 @@ std::map<double, Pose3> buildPoseMap(const std::string& filename){
 
 
 #define POINT_INTERVAL 10.0e-6 // microseconds
-#define MIN_SQUARE_DISTANCE 100
+#define MIN_X_DISTANCE 10
+
+
+open3d::core::Tensor IntensityToColorTensor(const std::vector<uint8_t>& intensities) {
+    // Convert std::vector<int> to cv::Mat
+    cv::Mat intensity_image(intensities.size(), 1, CV_8UC1);
+    for (size_t i = 0; i < intensities.size(); ++i) {
+        intensity_image.at<uchar>(i, 0) = static_cast<uchar>(std::clamp((int)intensities[i], 0, 255));
+    }
+
+    // Apply OpenCV colormap
+    cv::Mat color_image;
+    cv::applyColorMap(intensity_image, color_image, cv::COLORMAP_JET); // You can choose other colormaps
+
+    // Convert cv::Mat to open3d::core::Tensor
+    std::vector<float> colors;
+    colors.reserve(color_image.rows * color_image.cols * 3);
+    for (int i = 0; i < color_image.rows; ++i) {
+        const cv::Vec3b& color = color_image.at<cv::Vec3b>(i, 0);
+        colors.push_back(color[2] / 255.0f); // R
+        colors.push_back(color[1] / 255.0f); // G
+        colors.push_back(color[0] / 255.0f); // B
+    }
+
+    // Create Tensor from colors
+    open3d::core::Tensor color_tensor(
+        colors.data(), 
+        {colors.size() / 3, 3},
+        open3d::core::Dtype::Float32
+    );
+    
+    return color_tensor;
+}
 
 
 
-void buildPointCloud(std::map<double, Pose3> poseMap, Pose3 Tbl, const std::string& bag_filename) {
+void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& bag_filename) {
     // Open the bag
     rosbag::Bag bag;
     bag.open(bag_filename, rosbag::bagmode::Read);
 
-    // Define the topic of interest
-    std::string topic = "/livox_lidar_node/pointcloud2";
-
-
-    
     // Set up a ROSBag view for the topic
+    std::string topic = "/livox_lidar_node/pointcloud2";
     rosbag::View view(bag, rosbag::TopicQuery(topic));
+
+    // Set up vectors to save point info (We could probably do this a bit smarter but it does not seem like the allocation is out biggest problem)
+    std::vector<_Float64> positions;
+    std::vector<uint8_t> intensities;
+    std::vector<_Float64> timestamps;
     
-    int total_point_count = 0;
-    std::vector<std::vector<_Float32>> position_vectors;
-    position_vectors.reserve(view.size());
-    //std::vector<std::vector<uint8_t>> intensity_tensors;
-    //std::vector<open3d::core::Tensor> timestamp_tensors;
-
-    std::vector<_Float32> transformed_points;
-    transformed_points.reserve(3*3000*100000);
-
-    cout << std::fixed << std::setprecision(20); // Set precision
-
     // Iterate over the messages
     for (rosbag::MessageInstance const m : view) {
         // Check if the message is a PointCloud2 message
         sensor_msgs::PointCloud2::ConstPtr cloud_msg = m.instantiate<sensor_msgs::PointCloud2>();
         if (cloud_msg != nullptr) {
-            double t0 = cloud_msg->header.stamp.toSec();
-
             pcl::PointCloud<pcl::PointXYZI> pcl_cloud;
             pcl::fromROSMsg(*cloud_msg, pcl_cloud);
 
-            cout << "New point cloud at " << t0 << endl;
+            _Float64 t0 = cloud_msg->header.stamp.toSec();
+            _Float64 frame_interval = 2*pcl_cloud.size()*POINT_INTERVAL;
+            _Float64 t1 = t0 + frame_interval; // LiDAR in dual return mode
+            
+            // Initial and end pose of lidar frame, if not available, skip to next frame
+            Pose3 T0, T1;
+            if (!queryPose(lidarPoseMap, t0, T0) || !queryPose(lidarPoseMap, t1, T1)){
+                continue;
+            }
 
             int cnt = 0;
-
-            // Allocate memory for current frame
-            // std::vector<_Float32> transformed_points;
-            // transformed_points.reserve(3*pcl_cloud.points.size());
-
-            // std::vector<uint8_t> intensities;   
-            // intensities.reserve(pcl_cloud.points.size());
-            
-            // std::vector<_Float64> timestamps;
-            // timestamps.reserve(pcl_cloud.points.size());
-
             for (const auto& point : pcl_cloud.points) {
-                if (point.x == 0.0 && point.y == 0.0 && point.z == 0.0) {
-                    cnt ++;
-                    continue; // Skip this point
-                }
-                if (point.x*point.x + point.y*point.y + point.z*point.z < MIN_SQUARE_DISTANCE){
+                if (point.x < MIN_X_DISTANCE){ // Rough outlier rejection
                     cnt ++;
                     continue; // Less than 10 meters away, skip point
                 }  
-                
-                double ts_point = t0 + (cnt/2)*POINT_INTERVAL;
-                
-                Pose3 T;
-                if (queryPose(poseMap, ts_point, T)){
-                    //T = T.compose(Tbl);
-                    gtsam::Point3 gtsam_point(point.x, point.y, point.z);
-                    gtsam::Point3 transformed_point = T.transformFrom(gtsam_point);
 
-                    transformed_points.push_back(point.x);
-                    transformed_points.push_back(point.y); 
-                    transformed_points.push_back(point.z); 
+                _Float64 ts_point = t0 + (cnt/2)*POINT_INTERVAL;
 
-                    //intensities.push_back(point.intensity);
-                    //timestamps.push_back(ts_point);
-                }
+                Pose3 T = interpolatePose3(T0, T1, (ts_point - t0) / frame_interval);
+                gtsam::Point3 transformed_point = T.transformFrom(gtsam::Point3(point.x, point.y, point.z));
+
+                positions.push_back(transformed_point.x());
+                positions.push_back(transformed_point.y());
+                positions.push_back(transformed_point.z());
+
+                intensities.push_back(point.intensity);
+                timestamps.push_back(ts_point);
+
                 cnt ++;
             }
-
-            // if (transformed_points.size() != 0){
-            //     //transformed_points.shrink_to_fit();
-            //     position_vectors.push_back(transformed_points);
-
-            //     total_point_count += transformed_points.size();
-            // }
         }
     }
-
-
-    position_vectors.shrink_to_fit();
-
-    std::vector<_Float64> all_positions;
-    all_positions.reserve(3*total_point_count);
-
-    for (int i = 0; i < position_vectors.size(); i++){
-        all_positions.insert(all_positions.end(), position_vectors[i].begin(), position_vectors[i].end());
-    }
-
-
-    // point_cloud.Translate(-point_cloud.GetCenter());
-
-    // // Save the PointCloud to a file
-    // std::string filename = "/home/oskar/smooth_sailing/data/ws_right1/raw.pcd";
-    // open3d::t::io::WritePointCloud(filename, point_cloud);
-
-    // // Visualize pointcloud in c++
-    // open3d::visualization::Visualizer visualizer;
-    // visualizer.CreateVisualizerWindow("Open3D PointCloud Viewer", 800, 600);
-
-    // // Add the PointCloud to the visualizer
-    // visualizer.AddGeometry(std::make_shared<open3d::geometry::PointCloud>(point_cloud.ToLegacy()));
-
-    // // Run the visualizer
-    // visualizer.Run();
-
-    // // Close the visualizer window
-    // visualizer.DestroyVisualizerWindow();
-
-    // Close the bag    
     bag.close();
+
+    std::unordered_map<std::string, open3d::core::Tensor> tensor_map;
+
+    tensor_map["positions"] = open3d::core::Tensor(positions, {positions.size()/3, 3}, open3d::core::Dtype::Float64);
+    tensor_map["intensities"] = open3d::core::Tensor(intensities, {intensities.size(), 1}, open3d::core::Dtype::UInt8);
+    tensor_map["timestamps"] = open3d::core::Tensor(timestamps, {timestamps.size(), 1}, open3d::core::Dtype::Float64);
+    open3d::t::geometry::PointCloud point_cloud(tensor_map);
+
+    // Save the PointCloud to a file
+    std::string filename = "/home/oskar/smooth_sailing/data/ws_right1/raw.pcd";
+    open3d::t::io::WritePointCloud(filename, point_cloud);
+}
+
+
+void visualizePointCloud(std::string filename){
+    // Read file
+    open3d::t::geometry::PointCloud point_cloud;
+    open3d::t::io::ReadPointCloud(filename, point_cloud);
+
+    // Visualize pointcloud in c++
+    open3d::visualization::Visualizer visualizer;
+    visualizer.CreateVisualizerWindow("Open3D PointCloud Viewer", 800, 600);
+
+    // Add the PointCloud to the visualizer
+    visualizer.AddGeometry(std::make_shared<open3d::geometry::PointCloud>(point_cloud.ToLegacy()));
+
+    // Run the visualizer
+    visualizer.Run();
+
+    // Close the visualizer window
+    visualizer.DestroyVisualizerWindow();
 }
 
 
 
-
-
 int main(){
-    cout << std::fixed << std::setprecision(20); // Set precision
-
     Pose3 Tbl = readTbl("/home/oskar/smooth_sailing/data/ws_right1/calib/ext.yaml");
 
-    std::map<double, Pose3> poseMap = buildPoseMap("/home/oskar/smooth_sailing/data/ws_right1/nav.txt");
+    std::map<double, Pose3> lidarPoseMap = buildLidarPoseMap("/home/oskar/smooth_sailing/data/ws_right1/nav.txt", Tbl);
     
 
-    buildPointCloud(poseMap, Tbl, "/home/oskar/smooth_sailing/data/ws_right1/raw.bag");
+    buildPointCloud(lidarPoseMap, "/home/oskar/smooth_sailing/data/ws_right1/raw.bag");
 
-    // double t_query = 1725632406;
-
-    // Pose3 query_pose = queryPose(poseMap, t_query);
-    // cout << query_pose.rotation().rpy() << endl;
-    // cout << query_pose.translation() << endl;
-
-    // Last 1725632700.00046491622924804688
-    // First 1725632400.99974894523620605469
 
     return 0;
 }
