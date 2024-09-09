@@ -15,6 +15,10 @@
 #include <open3d/Open3D.h>
 #include <open3d/geometry/PointCloud.h>
 
+#include <open3d/core/Tensor.h>
+#include <open3d/t/geometry/PointCloud.h>
+
+
 using namespace gtsam;
 using namespace std;
 
@@ -53,6 +57,33 @@ bool queryPose(const std::map<double, gtsam::Pose3>& poses, double query_time, P
     
     pose_out = interpolatePose3(pose1, pose2, t);
     return true;
+}
+
+#include <yaml-cpp/yaml.h>
+
+// Read lidar to body transformation
+Pose3 readTbl(const std::string& filename){
+    YAML::Node config = YAML::LoadFile(filename);
+
+    gtsam::Matrix4 Tcb;
+    auto Tcb_node = config["T_cam_imu"];
+
+    gtsam::Matrix4 Tlc;
+    auto Tlc_node = config["T_lidar_cam"];
+    
+    
+    // Fill the matrix with the values from the YAML node
+    for (size_t i = 0; i < 4; i++) {
+        for (size_t j = 0; j < 4; j++) {
+            Tcb(i, j) = Tcb_node[i][j].as<double>();
+            Tlc(i, j) = Tlc_node[i][j].as<double>();
+        }
+    }
+
+    gtsam::Pose3 pose3cb(Tcb);
+    gtsam::Pose3 pose3lc(Tlc);
+
+    return pose3cb.inverse().compose(pose3lc.inverse());
 }
 
 
@@ -118,21 +149,29 @@ std::map<double, Pose3> buildPoseMap(const std::string& filename){
 
 
 
-void buildPointCloud(std::map<double, Pose3> poseMap, const std::string& bag_filename) {
+void buildPointCloud(std::map<double, Pose3> poseMap, Pose3 Tbl, const std::string& bag_filename) {
     // Open the bag
     rosbag::Bag bag;
     bag.open(bag_filename, rosbag::bagmode::Read);
 
     // Define the topic of interest
     std::string topic = "/livox_lidar_node/pointcloud2";
+
+
     
     // Set up a ROSBag view for the topic
     rosbag::View view(bag, rosbag::TopicQuery(topic));
+    
+    int total_point_count = 0;
+    std::vector<std::vector<_Float32>> position_vectors;
+    position_vectors.reserve(view.size());
+    //std::vector<std::vector<uint8_t>> intensity_tensors;
+    //std::vector<open3d::core::Tensor> timestamp_tensors;
+
+    std::vector<_Float32> transformed_points;
+    transformed_points.reserve(3*3000*100000);
 
     cout << std::fixed << std::setprecision(20); // Set precision
-
-
-    open3d::geometry::PointCloud point_cloud;// = open3d::geometry::PointCloud(); // Initialize pointcloud
 
     // Iterate over the messages
     for (rosbag::MessageInstance const m : view) {
@@ -145,12 +184,18 @@ void buildPointCloud(std::map<double, Pose3> poseMap, const std::string& bag_fil
             pcl::fromROSMsg(*cloud_msg, pcl_cloud);
 
             cout << "New point cloud at " << t0 << endl;
-            cout << "Number of points is: " << pcl_cloud.points.size() << endl;
 
             int cnt = 0;
 
-            std::vector<Eigen::Vector3d> transformed_points;
-            transformed_points.reserve(pcl_cloud.points.size());
+            // Allocate memory for current frame
+            // std::vector<_Float32> transformed_points;
+            // transformed_points.reserve(3*pcl_cloud.points.size());
+
+            // std::vector<uint8_t> intensities;   
+            // intensities.reserve(pcl_cloud.points.size());
+            
+            // std::vector<_Float64> timestamps;
+            // timestamps.reserve(pcl_cloud.points.size());
 
             for (const auto& point : pcl_cloud.points) {
                 if (point.x == 0.0 && point.y == 0.0 && point.z == 0.0) {
@@ -160,39 +205,64 @@ void buildPointCloud(std::map<double, Pose3> poseMap, const std::string& bag_fil
                 if (point.x*point.x + point.y*point.y + point.z*point.z < MIN_SQUARE_DISTANCE){
                     cnt ++;
                     continue; // Less than 10 meters away, skip point
-                }
+                }  
                 
                 double ts_point = t0 + (cnt/2)*POINT_INTERVAL;
                 
                 Pose3 T;
                 if (queryPose(poseMap, ts_point, T)){
+                    //T = T.compose(Tbl);
                     gtsam::Point3 gtsam_point(point.x, point.y, point.z);
-                    transformed_points.push_back(T.transformFrom(gtsam_point));
+                    gtsam::Point3 transformed_point = T.transformFrom(gtsam_point);
+
+                    transformed_points.push_back(point.x);
+                    transformed_points.push_back(point.y); 
+                    transformed_points.push_back(point.z); 
+
+                    //intensities.push_back(point.intensity);
+                    //timestamps.push_back(ts_point);
                 }
                 cnt ++;
             }
 
-            point_cloud += open3d::geometry::PointCloud(transformed_points);
+            // if (transformed_points.size() != 0){
+            //     //transformed_points.shrink_to_fit();
+            //     position_vectors.push_back(transformed_points);
+
+            //     total_point_count += transformed_points.size();
+            // }
         }
     }
 
 
-    // Save the PointCloud to a file
-    std::string filename = "/home/oskar/navigation/data/ws_right2/raw.pcd";
-    open3d::io::WritePointCloud(filename, point_cloud);
+    position_vectors.shrink_to_fit();
 
-    // Visualize pointcloud in c++
-    open3d::visualization::Visualizer visualizer;
-    visualizer.CreateVisualizerWindow("Open3D PointCloud Viewer", 800, 600);
+    std::vector<_Float64> all_positions;
+    all_positions.reserve(3*total_point_count);
 
-    // Add the PointCloud to the visualizer
-    visualizer.AddGeometry(std::make_shared<open3d::geometry::PointCloud>(point_cloud));
+    for (int i = 0; i < position_vectors.size(); i++){
+        all_positions.insert(all_positions.end(), position_vectors[i].begin(), position_vectors[i].end());
+    }
 
-    // Run the visualizer
-    visualizer.Run();
 
-    // Close the visualizer window
-    visualizer.DestroyVisualizerWindow();
+    // point_cloud.Translate(-point_cloud.GetCenter());
+
+    // // Save the PointCloud to a file
+    // std::string filename = "/home/oskar/smooth_sailing/data/ws_right1/raw.pcd";
+    // open3d::t::io::WritePointCloud(filename, point_cloud);
+
+    // // Visualize pointcloud in c++
+    // open3d::visualization::Visualizer visualizer;
+    // visualizer.CreateVisualizerWindow("Open3D PointCloud Viewer", 800, 600);
+
+    // // Add the PointCloud to the visualizer
+    // visualizer.AddGeometry(std::make_shared<open3d::geometry::PointCloud>(point_cloud.ToLegacy()));
+
+    // // Run the visualizer
+    // visualizer.Run();
+
+    // // Close the visualizer window
+    // visualizer.DestroyVisualizerWindow();
 
     // Close the bag    
     bag.close();
@@ -205,10 +275,12 @@ void buildPointCloud(std::map<double, Pose3> poseMap, const std::string& bag_fil
 int main(){
     cout << std::fixed << std::setprecision(20); // Set precision
 
-    std::map<double, Pose3> poseMap = buildPoseMap("/home/oskar/navigation/data/ws_right2/nav.txt");
+    Pose3 Tbl = readTbl("/home/oskar/smooth_sailing/data/ws_right1/calib/ext.yaml");
+
+    std::map<double, Pose3> poseMap = buildPoseMap("/home/oskar/smooth_sailing/data/ws_right1/nav.txt");
     
 
-    buildPointCloud(poseMap, "/home/oskar/navigation/data/ws_right2/raw.bag");
+    buildPointCloud(poseMap, Tbl, "/home/oskar/smooth_sailing/data/ws_right1/raw.bag");
 
     // double t_query = 1725632406;
 
