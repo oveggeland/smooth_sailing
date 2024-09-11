@@ -15,6 +15,9 @@ GNSSHandle::GNSSHandle(const YAML::Node &config){
 
     C = proj_context_create();
     P = proj_create_crs_to_crs(C, crs_source.c_str(), crs_target.c_str(), NULL);
+
+    x0 = 0;
+    y0 = 0;
 }
 
 
@@ -27,6 +30,13 @@ GNSSFactor GNSSHandle::getCorrectionFactor(Point2 xy, int correction_count){
 Point2 GNSSHandle::getMeasurement(p_gnss_msg msg){
     input_coords = proj_coord(msg->latitude, msg->longitude, 0, 0);
     output_coords = proj_trans(P, PJ_FWD, input_coords);
+
+    if (x0 == 0 && y0 == 0){
+        x0 = output_coords.xy.x;
+        y0 = output_coords.xy.y;
+    }
+
+
     
-    return Point2(output_coords.xy.y, output_coords.xy.x);
+    return Point2(output_coords.xy.y - y0, output_coords.xy.x - x0);
 }

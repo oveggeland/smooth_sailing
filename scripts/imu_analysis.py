@@ -2,10 +2,8 @@ import rosbag
 import numpy as np
 import matplotlib.pyplot as plt
 
-import sys
-
 if __name__ == "__main__":
-    bag_path = sys.argv[1]
+    bag_path = "/home/oskar/smooth_sailing/data/ws_left3/raw.bag"
 
     bag = rosbag.Bag(bag_path)
     bag_info = bag.get_type_and_topic_info()
@@ -39,10 +37,15 @@ if __name__ == "__main__":
         rate[cnt, 1] = msg.angular_velocity.y
         rate[cnt, 2] = msg.angular_velocity.z
 
+
         cnt += 1
 
-    print(np.linalg.norm(acc, axis=1).mean())
-
+    ts = ts[:cnt]
+    acc = acc[:cnt]
+    rate = rate[:cnt]
+    
+    print("Average rate: ", rate.mean(axis=0), "+-", rate.std(axis=0))
+    print("Average acc:", acc.mean(axis=0), "+-", acc.std(axis=0))
 
     plt.figure("Gyro")
     plt.plot(ts, rate)
@@ -50,4 +53,5 @@ if __name__ == "__main__":
     plt.figure("Acceleration")
     plt.plot(ts, acc)
 
+    
     plt.show()

@@ -21,7 +21,7 @@ class IceNav{
         void newGNSSMsg(p_gnss_msg msg);
 
         // Write
-        void finish();
+        void finish(const std::string& out_file);
 
     private:
         void checkInit(double ts);

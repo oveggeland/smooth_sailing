@@ -1,0 +1,7 @@
+<launch>	
+	<rosparam file="$(find smooth_sailing)/cfg/workspace.yaml" />
+
+	<node name="processing" pkg="smooth_sailing"
+	      type="process_pointcloud.py" required="true" respawn="false"
+	      output="screen"/>	
+</launch>

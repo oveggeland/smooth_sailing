@@ -16,6 +16,12 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
     ROS_INFO("Initialized navigation node");
 
+    string workspace;
+    if (!nh.getParam("/ws", workspace)){
+        cout << "Error: No workspace provided" << endl;
+        exit(1);
+    }
+
     // Load config
     std::string config_file;
     if (nh.getParam("config_file", config_file)) {
@@ -31,7 +37,7 @@ int main(int argc, char **argv)
     IceNav ice_nav = IceNav(config);
     
     // Open bag
-    std::string bagPath = config["workspace"].as<std::string>() + "raw.bag";    
+    std::string bagPath = workspace + "cooked.bag";    
     rosbag::Bag bag(bagPath.c_str());  // BagMode is Read by default
 
     // Iterate over bag file and build factors
@@ -71,7 +77,7 @@ int main(int argc, char **argv)
 
     // Close up shop
     bag.close();
-    ice_nav.finish();
+    ice_nav.finish(workspace + "nav.txt");
 
     return 0;
 }

@@ -53,7 +53,7 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     ship_predicted_position = predict_position_from_ship_data(ship_data, lever_arm=lever_arm)
     ship_height_prediction = ship_predicted_position[:, 2]
 
-    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+    fig, axs = plt.subplots(3, 2, figsize=(12, 8))
     axs = axs.flatten()  # Flatten the 2x2 grid into a 1D array for easy access
 
     # Plot "True heading" on the first subplot
@@ -92,6 +92,20 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     ax.set_xlabel('X-axis')
     ax.set_ylabel('Y-axis')
     ax.set_title('Scatter plot with two datasets')
+    ax.legend()
+    
+    # Compare roll and pitch
+    ax = axs[4]
+    ship_roll = -ship_data["roll"].values
+    ship_pitch = -ship_data["pitch"].values
+
+    sys_roll = nav_data["roll"].values*RAD2DEG
+    sys_pitch = nav_data["pitch"].values*RAD2DEG
+    
+    ax.plot(nav_data["ts"].values, sys_roll - sys_roll.mean(), c='r', linestyle='dashed', label="sys_roll")
+    ax.plot(nav_data["ts"].values, sys_pitch - sys_pitch.mean(), c='b', linestyle='dashed', label="sys_roll")
+    ax.plot(ship_data["ts"].values, ship_roll - ship_roll.mean(), c='g', label="ship_roll")
+    ax.plot(ship_data["ts"].values, ship_pitch - ship_pitch.mean(), c='y',  label="ship_pitch")
     ax.legend()
 
     # Show the plot
@@ -170,7 +184,7 @@ if __name__ == "__main__":
 
     
     config_file = rospy.get_param("config_file")
-    ws = find_in_yaml(config_file, "workspace")
+    ws = rospy.get_param("/ws")
     
     # Extract ship data
     ship_data = pd.read_csv(os.path.join(ws, "ship_nav.txt"))

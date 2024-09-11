@@ -6,6 +6,8 @@ import rosbag
 import sys 
 import os
 
+import rospy
+
 import matplotlib.pyplot as plt
 from pyproj import Transformer
 
@@ -76,7 +78,9 @@ def plot_ship_data(df):
 
 
 if __name__ == "__main__":
-    ws_path = sys.argv[1]
+    rospy.init_node("ship_data_node")
+    
+    ws_path = rospy.get_param("/ws")
     df = extract_ship_data(os.path.join(ws_path, "ship.bag"))
 
     

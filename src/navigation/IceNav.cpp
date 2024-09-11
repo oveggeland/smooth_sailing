@@ -94,7 +94,7 @@ void IceNav::checkInit(double ts){
 }
 
 
-void IceNav::finish(){
+void IceNav::finish(const std::string& out_file){
     graph_handle.optimizeAndUpdateValues(true);
-    graph_handle.writeResults(correction_count_, correction_stamps_);
+    graph_handle.writeResults(correction_count_, correction_stamps_, out_file);
 }

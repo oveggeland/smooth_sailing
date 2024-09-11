@@ -1,0 +1,7 @@
+<launch>	
+	<rosparam file="$(find smooth_sailing)/cfg/workspace.yaml" />
+
+	<node name="ship_data_extractor" pkg="smooth_sailing"
+	      type="extract_ship_data.py" required="true" respawn="false"
+	      output="screen"/>	
+</launch>

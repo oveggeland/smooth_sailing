@@ -45,6 +45,8 @@ class GNSSHandle{
         PJ *P;
 
         PJ_COORD input_coords, output_coords; // https://proj.org/development/reference/datatypes.html#c.PJ_COORD
+
+        _Float64 x0, y0; // Offsets
 };
 
 

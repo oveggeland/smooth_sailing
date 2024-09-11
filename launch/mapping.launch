@@ -1,0 +1,7 @@
+<launch>	
+	<rosparam file="$(find smooth_sailing)/cfg/workspace.yaml" />
+
+	<node name="mapping_node" pkg="smooth_sailing"
+	      type="mapping" required="true" respawn="false"
+	      output="screen"/>	
+</launch>

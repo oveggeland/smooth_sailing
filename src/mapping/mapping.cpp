@@ -4,9 +4,8 @@
 #include <map>
 #include <fstream>
 #include <iomanip>
-#include <algorithm>  // For std::clamp
-#include <opencv2/opencv.hpp>
 
+#include <ros/ros.h>
 #include <rosbag/bag.h>
 #include <rosbag/view.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -150,43 +149,9 @@ std::map<double, Pose3> buildLidarPoseMap(const std::string& filename, Pose3 Tbl
 #define MIN_X_DISTANCE 10
 
 
-open3d::core::Tensor IntensityToColorTensor(const std::vector<uint8_t>& intensities) {
-    // Convert std::vector<int> to cv::Mat
-    cv::Mat intensity_image(intensities.size(), 1, CV_8UC1);
-    for (size_t i = 0; i < intensities.size(); ++i) {
-        intensity_image.at<uchar>(i, 0) = static_cast<uchar>(std::clamp((int)intensities[i], 0, 255));
-    }
-
-    // Apply OpenCV colormap
-    cv::Mat color_image;
-    cv::applyColorMap(intensity_image, color_image, cv::COLORMAP_JET); // You can choose other colormaps
-
-    // Convert cv::Mat to open3d::core::Tensor
-    std::vector<float> colors;
-    colors.reserve(color_image.rows * color_image.cols * 3);
-    for (int i = 0; i < color_image.rows; ++i) {
-        const cv::Vec3b& color = color_image.at<cv::Vec3b>(i, 0);
-        colors.push_back(color[2] / 255.0f); // R
-        colors.push_back(color[1] / 255.0f); // G
-        colors.push_back(color[0] / 255.0f); // B
-    }
-
-    // Create Tensor from colors
-    open3d::core::Tensor color_tensor(
-        colors.data(), 
-        {colors.size() / 3, 3},
-        open3d::core::Dtype::Float32
-    );
-    
-    return color_tensor;
-}
-
-
-
-void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& bag_filename) {
+void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& bag_filename, std::string out_file) {
     // Open the bag
-    rosbag::Bag bag;
-    bag.open(bag_filename, rosbag::bagmode::Read);
+    rosbag::Bag bag(bag_filename);
 
     // Set up a ROSBag view for the topic
     std::string topic = "/livox_lidar_node/pointcloud2";
@@ -196,6 +161,7 @@ void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& ba
     std::vector<_Float64> positions;
     std::vector<uint8_t> intensities;
     std::vector<_Float64> timestamps;
+    std::vector<_Float32> distances;
     
     // Iterate over the messages
     for (rosbag::MessageInstance const m : view) {
@@ -222,6 +188,7 @@ void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& ba
                     continue; // Less than 10 meters away, skip point
                 }  
 
+                _Float32 distance2 = point.x*point.x + point.y*point.y + point.z*point.z;
                 _Float64 ts_point = t0 + (cnt/2)*POINT_INTERVAL;
 
                 Pose3 T = interpolatePose3(T0, T1, (ts_point - t0) / frame_interval);
@@ -232,56 +199,48 @@ void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& ba
                 positions.push_back(transformed_point.z());
 
                 intensities.push_back(point.intensity);
-                timestamps.push_back(ts_point);
+                distances.push_back(distance2); // Distance squared, to save computational costs
+                timestamps.push_back(ts_point - 1704067200);
 
                 cnt ++;
             }
         }
+
+        if (!ros::ok())
+            exit(1);
     }
     bag.close();
 
     std::unordered_map<std::string, open3d::core::Tensor> tensor_map;
 
-    tensor_map["positions"] = open3d::core::Tensor(positions, {positions.size()/3, 3}, open3d::core::Dtype::Float64);
-    tensor_map["intensities"] = open3d::core::Tensor(intensities, {intensities.size(), 1}, open3d::core::Dtype::UInt8);
-    tensor_map["timestamps"] = open3d::core::Tensor(timestamps, {timestamps.size(), 1}, open3d::core::Dtype::Float64);
+    tensor_map["positions"] = open3d::core::Tensor(positions, {(int)positions.size()/3, 3}, open3d::core::Dtype::Float64);
+    tensor_map["intensities"] = open3d::core::Tensor(intensities, {(int)intensities.size(), 1}, open3d::core::Dtype::UInt8);
+    tensor_map["timestamps"] = open3d::core::Tensor(timestamps, {(int)timestamps.size(), 1}, open3d::core::Dtype::Float64);
+    tensor_map["distances"] = open3d::core::Tensor(distances, {(int)distances.size(), 1}, open3d::core::Dtype::Float32);
     open3d::t::geometry::PointCloud point_cloud(tensor_map);
 
     // Save the PointCloud to a file
-    std::string filename = "/home/oskar/smooth_sailing/data/ws_right1/raw.pcd";
-    open3d::t::io::WritePointCloud(filename, point_cloud);
+    if (!open3d::t::io::WritePointCloud(out_file, point_cloud))
+        cout << "Failed to save cloud at " << out_file << endl;
 }
 
+int main(int argc, char** argv){
+    ros::init(argc, argv, "mapping_node");
+    ros::NodeHandle nh("~");
 
-void visualizePointCloud(std::string filename){
-    // Read file
-    open3d::t::geometry::PointCloud point_cloud;
-    open3d::t::io::ReadPointCloud(filename, point_cloud);
-
-    // Visualize pointcloud in c++
-    open3d::visualization::Visualizer visualizer;
-    visualizer.CreateVisualizerWindow("Open3D PointCloud Viewer", 800, 600);
-
-    // Add the PointCloud to the visualizer
-    visualizer.AddGeometry(std::make_shared<open3d::geometry::PointCloud>(point_cloud.ToLegacy()));
-
-    // Run the visualizer
-    visualizer.Run();
-
-    // Close the visualizer window
-    visualizer.DestroyVisualizerWindow();
-}
-
-
-
-int main(){
-    Pose3 Tbl = readTbl("/home/oskar/smooth_sailing/data/ws_right1/calib/ext.yaml");
-
-    std::map<double, Pose3> lidarPoseMap = buildLidarPoseMap("/home/oskar/smooth_sailing/data/ws_right1/nav.txt", Tbl);
+    cout << fixed << setprecision(20);
     
+    std::string workspace;
+    if (!nh.getParam("/ws", workspace)){
+        cout << "Error: No workspace provided" << endl;
+        exit(1);
+    }
 
-    buildPointCloud(lidarPoseMap, "/home/oskar/smooth_sailing/data/ws_right1/raw.bag");
+    Pose3 Tbl = readTbl(workspace + "calib/ext.yaml");
 
+    std::map<double, Pose3> lidarPoseMap = buildLidarPoseMap(workspace + "nav.txt", Tbl);
+    
+    buildPointCloud(lidarPoseMap, workspace + "cooked.bag", workspace + "raw.ply");
 
     return 0;
 }

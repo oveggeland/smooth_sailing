@@ -1,11 +1,17 @@
 #! /bin/python3 
 
+import os
+import rospy
 import rosbag
-import sys
+
 
 if __name__ == "__main__":
-    in_bag = sys.argv[1]
-    out_bag = in_bag[:-4] + "_cooked.bag"
+    rospy.init_node("cookbook_node")
+    
+    ws = rospy.get_param("/ws")
+    
+    in_bag = os.path.join(ws, "raw.bag")
+    out_bag = os.path.join(ws, "cooked.bag")
 
     with rosbag.Bag(out_bag, 'w') as outbag:
         for topic, msg, t in rosbag.Bag(in_bag).read_messages():

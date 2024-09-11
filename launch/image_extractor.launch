@@ -1,0 +1,7 @@
+<launch>	
+	<rosparam file="$(find smooth_sailing)/cfg/workspace.yaml" />
+
+	<node name="image_extractors" pkg="smooth_sailing"
+	      type="extract_images.py" required="true" respawn="false"
+	      output="screen"/>	
+</launch>

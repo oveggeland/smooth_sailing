@@ -73,9 +73,7 @@ void GraphHandle::initializeRotation(Rot3 R0){
     prior_rot = R0;
 }
 
-void GraphHandle::writeResults(int correction_count_, vector<double> & correction_stamps_){
-    std::string ws = config["workspace"].as<std::string>();
-    std::string out_file = ws + "nav.txt";
+void GraphHandle::writeResults(int correction_count_, vector<double> & correction_stamps_, const std::string& out_file){
     ofstream f(out_file);
 
     f << "ts,x,y,z,vx,vy,vz,roll,pitch,yaw,bax,bay,baz,bgx,bgy,bgz" << endl;

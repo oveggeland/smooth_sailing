@@ -20,23 +20,24 @@ find_package(PCL REQUIRED)
 find_package(Open3D REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(PROJ REQUIRED)
-find_package(OpenCV REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(OpenCV REQUIRED)
 
 catkin_package()
 
-include_directories(${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS} ${Open3D_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} include)
-
+include_directories(${catkin_INCLUDE_DIRS} include) # ${PCL_INCLUDE_DIRS} ${Open3D_INCLUDE_DIRS} include)
+include_directories(${OpenCV_INCLUDE_DIRS})
 
 file(GLOB navigation_src "src/navigation/*.cpp")
 add_executable(navigation ${navigation_src})
 
-file(GLOB mapping_src "src/mapping/*.cpp")
-add_executable(mapping ${mapping_src})
+#file(GLOB mapping_src "src/mapping/*.cpp")
+add_executable(mapping src/mapping/mapping.cpp)
+add_executable(image_reconstruction src/mapping/image_reconstruction.cpp)
 
 target_link_libraries(navigation gtsam proj yaml-cpp ${catkin_LIBRARIES})
-target_link_libraries(mapping gtsam yaml-cpp ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Open3D_LIBRARIES} ${OpenCV_LIBS})
-
+target_link_libraries(mapping gtsam yaml-cpp ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Open3D_LIBRARIES})
+target_link_libraries(image_reconstruction gtsam yaml-cpp ${catkin_LIBRARIES} ${Open3D_LIBRARIES} ${OpenCV_LIBS})
 
 # Mark executable scripts (Python etc.) for installation
 install(PROGRAMS

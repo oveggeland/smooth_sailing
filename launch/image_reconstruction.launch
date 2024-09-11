@@ -1,0 +1,7 @@
+<launch>	
+	<rosparam file="$(find smooth_sailing)/cfg/workspace.yaml" />
+
+	<node name="image_reconstruction" pkg="smooth_sailing"
+	      type="image_reconstruction" required="true" respawn="false"
+	      output="screen"/>	
+</launch>
