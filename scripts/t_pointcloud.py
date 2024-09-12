@@ -13,14 +13,15 @@ def t_filter(pcd, channel, min=-np.inf, max=np.inf):
     if not pcd.point.positions.numpy().shape[0]:
         return pcd
     
-    val = t_get_channel(pcd, channel)
+    val = t_get_channel(pcd, channel).flatten()
     mask = (val >= min) & (val <= max)
     
+    print(mask.sum())
     return pcd.select_by_mask(mask)
 
 
 def t_percentile_filter(pcd, channel, lower=0, upper=100):
-    vals = t_get_channel(pcd, channel)
+    vals = t_get_channel(pcd, channel).flatten()
     sorted_idx = np.argsort(vals)
 
     lb, ub = int(lower*sorted_idx.size/100), int(upper*sorted_idx.size/100)

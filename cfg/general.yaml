@@ -1,9 +1,10 @@
 ws: "/home/oskar/smooth_sailing/data/my_workspace/"
 max_time_interval: 300
 
-run_cookbook: false
+run_workspace_preparation: false
 run_navigation: false
-run_mapping: true
+run_mapping: false
+run_post_processing: true
 
-ext_file: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/ext_left.yaml"
+ext_file: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/ext_right.yaml"
 nav_config: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/nav.yaml"
