@@ -4,7 +4,7 @@
 #include <fstream>
 
 #include "yaml-cpp/yaml.h"
-
+#include <filesystem>
 #include "smooth_sailing/IceNav.h"
 
 using namespace std;
@@ -12,9 +12,8 @@ using namespace std;
 int main(int argc, char **argv)
 {
     // Initialize node
-    ros::init(argc, argv, "rosbag_navigation_node");
+    ros::init(argc, argv, "navigation_node");
     ros::NodeHandle nh;
-    ROS_INFO("Initialized navigation node");
 
     string workspace;
     if (!nh.getParam("/ws", workspace)){
@@ -24,7 +23,7 @@ int main(int argc, char **argv)
 
     // Load config
     std::string config_file;
-    if (nh.getParam("config_file", config_file)) {
+    if (nh.getParam("nav_config", config_file)) {
         ROS_INFO("Using config file: %s", config_file.c_str());
     } else {
         ROS_WARN("Failed to get parameter 'config_file'");
@@ -36,17 +35,17 @@ int main(int argc, char **argv)
     // Initialize the navigation 
     IceNav ice_nav = IceNav(config);
     
-    // Open bag
-    std::string bagPath = workspace + "cooked.bag";    
-    rosbag::Bag bag(bagPath.c_str());  // BagMode is Read by default
+    // Open bag 
+    rosbag::Bag bag(workspace + "cooked.bag");  // BagMode is Read by default
 
     // Iterate over bag file and build factors
     double t0 = 0.0;
     double prev_ts = 0.0;
     double current_ts = 0.0;
-    double max_time_interval = config["max_time_interval"].as<double>();
 
-    string msg_type;
+    double max_time_interval;
+    nh.getParam("max_time_interval", max_time_interval);
+
     for(rosbag::MessageInstance const m: rosbag::View(bag)){
         // Validate time stamps
         current_ts = m.getTime().toSec();
@@ -65,7 +64,7 @@ int main(int argc, char **argv)
         prev_ts = current_ts;
 
         // Sort by message type
-        msg_type = m.getDataType();
+        string msg_type = m.getDataType();
         if (msg_type == "sensor_msgs/Imu"){
             ice_nav.newImuMsg(m.instantiate<sensor_msgs::Imu>());
         }
@@ -77,7 +76,11 @@ int main(int argc, char **argv)
 
     // Close up shop
     bag.close();
-    ice_nav.finish(workspace + "nav.txt");
+    // Create a navigation folder to save data in
+
+    std::string nav_path = std::filesystem::path(workspace) / "navigation";
+    std::filesystem::create_directory(nav_path);
+    ice_nav.finish(nav_path);
 
     return 0;
 }

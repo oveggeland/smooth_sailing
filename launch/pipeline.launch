@@ -1,0 +1,7 @@
+<launch>	
+	<rosparam file="$(find smooth_sailing)/cfg/general.yaml" />
+
+	<node name="pipeline" pkg="smooth_sailing"
+	      type="pipeline.py" required="true" respawn="false"
+	      output="screen"/>	
+</launch>

@@ -1,0 +1,7 @@
+ws: "/home/oskar/smooth_sailing/data/my_workspace/"
+max_time_interval: 300
+
+run_cookbook: false
+run_navigation: true
+
+nav_config: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/nav.yaml"

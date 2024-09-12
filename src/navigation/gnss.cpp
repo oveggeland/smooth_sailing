@@ -16,8 +16,8 @@ GNSSHandle::GNSSHandle(const YAML::Node &config){
     C = proj_context_create();
     P = proj_create_crs_to_crs(C, crs_source.c_str(), crs_target.c_str(), NULL);
 
-    x0 = 0;
-    y0 = 0;
+    x0_ = 0;
+    y0_ = 0;
 }
 
 
@@ -31,12 +31,18 @@ Point2 GNSSHandle::getMeasurement(p_gnss_msg msg){
     input_coords = proj_coord(msg->latitude, msg->longitude, 0, 0);
     output_coords = proj_trans(P, PJ_FWD, input_coords);
 
-    if (x0 == 0 && y0 == 0){
-        x0 = output_coords.xy.x;
-        y0 = output_coords.xy.y;
+    if (x0_ == 0 && y0_ == 0){
+        x0_ = output_coords.xy.x;
+        y0_ = output_coords.xy.y;
     }
 
 
     
-    return Point2(output_coords.xy.y - y0, output_coords.xy.x - x0);
+    return Point2(output_coords.xy.y - y0_, output_coords.xy.x - x0_);
+}
+
+
+void GNSSHandle::getOffset(double &x0, double &y0){
+    x0 = x0_;
+    y0 = y0_;
 }

@@ -30,6 +30,7 @@ class GNSSHandle{
         Point2 getMeasurement(p_gnss_msg);
 
         GNSSFactor getCorrectionFactor(Point2 xy, int correction_count);
+        void getOffset(double &x0, double &y0);
 
     private:
         // Noise parameters
@@ -46,7 +47,7 @@ class GNSSHandle{
 
         PJ_COORD input_coords, output_coords; // https://proj.org/development/reference/datatypes.html#c.PJ_COORD
 
-        _Float64 x0, y0; // Offsets
+        _Float64 x0_, y0_; // Offsets
 };
 
 

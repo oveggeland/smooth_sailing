@@ -8,6 +8,8 @@
 
 #include "yaml-cpp/yaml.h"
 
+#include <filesystem>
+
 using namespace gtsam;
 using namespace std;
 
@@ -21,7 +23,7 @@ class IceNav{
         void newGNSSMsg(p_gnss_msg msg);
 
         // Write
-        void finish(const std::string& out_file);
+        void finish(const std::string& outdir);
 
     private:
         void checkInit(double ts);
@@ -32,6 +34,7 @@ class IceNav{
         bool gnss_init_ = false;
         bool imu_init_ = false;
         bool is_init_ = false;
+        double t0_ = 0.0;
 
         int correction_count_;
         vector<double> correction_stamps_;

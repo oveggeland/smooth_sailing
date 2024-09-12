@@ -79,6 +79,7 @@ void IceNav::newCorrection(double ts_correction){
 
 void IceNav::checkInit(double ts){
     if (gnss_init_ && imu_init_){
+        t0_ = ts;
         is_init_ = true;
         ts_head_ = ts;
 
@@ -94,7 +95,27 @@ void IceNav::checkInit(double ts){
 }
 
 
-void IceNav::finish(const std::string& out_file){
+void IceNav::finish(const std::string& outdir){
     graph_handle.optimizeAndUpdateValues(true);
-    graph_handle.writeResults(correction_count_, correction_stamps_, out_file);
+    graph_handle.writeResults(correction_count_, correction_stamps_, std::filesystem::path(outdir) / "nav.csv");
+
+    // Write nav info yaml
+    YAML::Node config;
+
+    // Add data to the node
+    double x0, y0;
+    gnss_handle.getOffset(x0, y0);
+    config["x0"] = x0;
+    config["y0"] = y0;
+    config["t0"] = t0_;
+
+    // Convert the node to a YAML string
+    YAML::Emitter emitter;
+    emitter << config;
+
+    // Write to a file
+    cout << "Writing to " << std::filesystem::path(outdir) / "nav_info.yaml" << endl;
+    std::ofstream fout(std::filesystem::path(outdir) / "nav_info.yaml");
+    fout << emitter.c_str();
+    fout.close();
 }
