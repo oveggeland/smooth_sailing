@@ -24,9 +24,6 @@ signal.signal(signal.SIGINT, lambda sig, frame: shutdown_hook())
 signal.signal(signal.SIGTERM, lambda sig, frame: shutdown_hook())
 
 
-def predict_offset(rpy, lever_arm):
-    return Rot.from_euler('xyz', rpy, degrees=True).as_matrix() @ lever_arm
-
 def predict_position_from_ship_data(ship_data, lever_arm):
     # Extract pose of ship
     rpy = ship_data[["roll", "pitch", "heading"]].to_numpy()
@@ -53,60 +50,39 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     ship_predicted_position = predict_position_from_ship_data(ship_data, lever_arm=lever_arm)
     ship_height_prediction = ship_predicted_position[:, 2]
 
-    fig, axs = plt.subplots(3, 2, figsize=(12, 8))
-    axs = axs.flatten()  # Flatten the 2x2 grid into a 1D array for easy access
+    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+    ax0, ax1, ax2, ax3 = axs.flatten()  # Flatten the 2x2 grid into a 1D array for easy access
 
     # Plot "True heading" on the first subplot
-    axs[0].plot(ship_time, ship_heading, label="ship")
-    axs[0].plot(nav_time, nav_heading, label="sys")
-    axs[0].set_title("True heading")
-    axs[0].legend()
+    ax0.plot(ship_time, ship_heading, label="ship")
+    ax0.plot(nav_time, nav_heading, label="sys")
+    ax0.set_title("True heading")
+    ax0.legend()
 
     # Plot "Normalized heading" on the second subplot
-    axs[1].plot(ship_time, ssa(ship_heading - ship_heading[0]), label="ship")
-    axs[1].plot(nav_time, ssa(nav_heading - nav_heading[0]), label="sys")
-    axs[1].set_title("Normalized heading")
-    axs[1].legend()
+    ax1.plot(ship_time, ssa(ship_heading - ship_heading[0]), label="ship")
+    ax1.plot(nav_time, ssa(nav_heading - nav_heading[0]), label="sys")
+    ax1.set_title("Normalized heading")
+    ax1.legend()
 
     # Plot "Comparing height" on the third subplot
-    axs[2].plot(ship_time, ship_height_prediction - ship_height_prediction.mean(), label="ship")
-    axs[2].plot(nav_time, nav_height - nav_height.mean(), label="sys")
-    axs[2].set_title("Comparing height")
-    axs[2].legend()
-    
-    # Compare position and predicted position
-    ax = axs[3]
-    
-    # First scatter plot with t0 for color
-    tmin = min(nav_time.min(), ship_time.min())
-    tmax = min(nav_time.max(), ship_time.max())
-    
-    ax.scatter(nav_data['y'], nav_data['x'], c=nav_time, vmin=tmin, vmax=tmax, cmap='viridis', label='Navigation estimate',  marker='o')
-    cmap = ax.scatter(ship_predicted_position[:, 1], ship_predicted_position[:, 0], c=ship_time, vmin=tmin, vmax=tmax, cmap='viridis',
-                      label='Ship prediction', marker='v')
-
-    # Add colorbars for each scatter plot
-    cbar1 = fig.colorbar(cmap, ax=ax, orientation='vertical', label='Time')
-
-    # Add labels and title
-    ax.set_xlabel('X-axis')
-    ax.set_ylabel('Y-axis')
-    ax.set_title('Scatter plot with two datasets')
-    ax.legend()
+    ax2.plot(ship_time, ship_height_prediction - ship_height_prediction.mean(), label="ship")
+    ax2.plot(nav_time, nav_height - nav_height.mean(), label="sys")
+    ax2.set_title("Comparing height")
+    ax2.legend()
     
     # Compare roll and pitch
-    ax = axs[4]
     ship_roll = -ship_data["roll"].values
-    ship_pitch = -ship_data["pitch"].values
+    ship_pitch = ship_data["pitch"].values
 
     sys_roll = nav_data["roll"].values*RAD2DEG
     sys_pitch = nav_data["pitch"].values*RAD2DEG
     
-    ax.plot(nav_data["ts"].values, sys_roll - sys_roll.mean(), c='r', linestyle='dashed', label="sys_roll")
-    ax.plot(nav_data["ts"].values, sys_pitch - sys_pitch.mean(), c='b', linestyle='dashed', label="sys_roll")
-    ax.plot(ship_data["ts"].values, ship_roll - ship_roll.mean(), c='g', label="ship_roll")
-    ax.plot(ship_data["ts"].values, ship_pitch - ship_pitch.mean(), c='y',  label="ship_pitch")
-    ax.legend()
+    ax3.plot(nav_data["ts"].values, sys_roll - sys_roll.mean(), c='r', linestyle='dashed', label="sys_roll")
+    ax3.plot(nav_data["ts"].values, sys_pitch - sys_pitch.mean(), c='b', linestyle='dashed', label="sys_roll")
+    ax3.plot(ship_data["ts"].values, ship_roll - ship_roll.mean(), c='g', label="ship_roll")
+    ax3.plot(ship_data["ts"].values, ship_pitch - ship_pitch.mean(), c='y',  label="ship_pitch")
+    ax3.legend()
 
     # Show the plot
     plt.tight_layout()
@@ -182,21 +158,20 @@ def plot_navigation(nav_data):
 if __name__ == "__main__":
     rospy.init_node("navigation_evaluation_node")
 
-    
-    config_file = rospy.get_param("config_file")
+    nav_config = rospy.get_param("nav_config")
     ws = rospy.get_param("/ws")
     
     # Extract ship data
-    ship_data = pd.read_csv(os.path.join(ws, "ship_nav.txt"))
+    ship_data = pd.read_csv(os.path.join(ws, "navigation", "ship.csv"))
     
     # Extract navigation estimates
-    nav_data = extract_nav_data(os.path.join(ws, "nav.txt"))
+    nav_data = extract_nav_data(os.path.join(ws, "navigation", "nav.csv"))
     
     plot_navigation(nav_data)
-    plt.savefig(os.path.join(ws, "trajectory.png"))
+    plt.savefig(os.path.join(ws, "navigation", "trajectory.png"))
     
-    compare_navigation(nav_data, ship_data, find_in_yaml(config_file, "lever_arm"))
-    plt.savefig(os.path.join(ws, "ship_comparison.png"))
+    compare_navigation(nav_data, ship_data, find_in_yaml(nav_config, "lever_arm"))
+    plt.savefig(os.path.join(ws, "navigation", "ship_comparison.png"))
     
     
     try:

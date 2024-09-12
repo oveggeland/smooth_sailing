@@ -22,6 +22,12 @@ if __name__ == "__main__":
         node2.wait()
         print("Finished navigation")
         
+    if rospy.get_param("run_navigation_evaluation", False):
+        print("Running navigation evaluation")
+        node2 = launch_node('smooth_sailing' ,'evaluate_navigation.py')
+        node2.wait()
+        print("Finished navigation evaluation")
+        
     if rospy.get_param("run_ship_data_extraction", False):
         print("Running ship data extraction")
         node2 = launch_node('smooth_sailing' ,'ship_data_extraction.py')
