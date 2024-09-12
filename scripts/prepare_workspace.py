@@ -2,11 +2,11 @@
 import os
 import rospy
 import rosbag
-from cv_bridge import CvBridge
 import numpy as np
 import cv2
 from pyproj import Transformer
 import pandas as pd
+from image_rendering import CameraHandle
 
 def cookbook(ws):
     in_bag = os.path.join(ws, "raw.bag")
@@ -20,14 +20,11 @@ def cookbook(ws):
                 outbag.write(topic, msg, msg.transforms[0].header.stamp)
             else:
                 outbag.write(topic, msg, msg.header.stamp if msg._has_header else t)
-         
                 
 def extract_images(ws, interval=5):
     bag_file = os.path.join(ws, "raw.bag")
-    output_folder = os.path.join(ws, "images")
-    
-    # Initialize CvBridge
-    bridge = CvBridge()
+    output_folder = os.path.join(ws, "images", "optical")
+    cam = CameraHandle(rospy.get_param("int_file"))
 
     # Check if the output folder exists, create if it doesn't
     if not os.path.exists(output_folder):
@@ -39,9 +36,13 @@ def extract_images(ws, interval=5):
         seq = 0
         for topic, msg, t in bag.read_messages(topics=["/blackfly_node/image"]):
             if (seq % interval) == 0:
-                cv_image = bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-                image_filename = os.path.join(output_folder, f'frame_{seq:04d}.png')
-                cv2.imwrite(image_filename, cv_image)
+                img = cam.get_undistorted_image(msg, crop_to_roi=True)
+                cv2.imwrite(os.path.join(output_folder, f"frame_{seq:04d}.png"), img)
+                
+                if rospy.is_shutdown():
+                    break
+                
+                
             seq += 1
             
 
@@ -81,7 +82,9 @@ if __name__ == "__main__":
     
     print("Cooking data bag...")
     cookbook(ws)
+    
     print("Extracting images...")
     extract_images(ws, interval=5)
+    
     print("Extracting ship data...")
     extract_ship_data(ws)

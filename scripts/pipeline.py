@@ -3,47 +3,36 @@
 import subprocess
 import rospy
 
-def launch_node(package, executable, *args):
-    command = ['rosrun', package, executable] + list(args)
-    return subprocess.Popen(command)
+def run_node(executable):
+    print("Running", executable)
+    command = ['rosrun', 'smooth_sailing', executable]
+    subprocess.Popen(command).wait()
+    print("Finished", executable)
 
 if __name__ == "__main__":
     rospy.init_node("pipeline_node")
     
-    if rospy.get_param("run_workspace_preparation", False):
-        print("Run workspace preparation")
-        node1 = launch_node('smooth_sailing' ,'prepare_workspace.py')
-        node1.wait()
-        print("Finished workspace preperation")
+    print("Running pipeline in workspace:", rospy.get_param("/ws", "UNDEFINED"))
     
+    if rospy.get_param("run_workspace_preparation", False):
+        run_node('prepare_workspace.py')
+
     if rospy.get_param("run_navigation", False):
-        print("Running navigation")
-        node2 = launch_node('smooth_sailing' ,'navigation')
-        node2.wait()
-        print("Finished navigation")
+        run_node('navigation')
         
     if rospy.get_param("run_navigation_evaluation", False):
-        print("Running navigation evaluation")
-        node2 = launch_node('smooth_sailing' ,'evaluate_navigation.py')
-        node2.wait()
-        print("Finished navigation evaluation")
+        run_node('evaluate_navigation.py')
         
     if rospy.get_param("run_ship_data_extraction", False):
-        print("Running ship data extraction")
-        node2 = launch_node('smooth_sailing' ,'ship_data_extraction.py')
-        node2.wait()
-        print("Finished ship data extraction")
+        run_node('ship_data_extraction.py')
         
     if rospy.get_param("run_mapping", False):
-        print("Running mapping")
-        node2 = launch_node('smooth_sailing' ,'mapping')
-        node2.wait()
-        print("Finished mapping")
+        run_node('mapping')
     
     if rospy.get_param("run_post_processing", False):
-        print("Running post processing")
-        node2 = launch_node('smooth_sailing' ,'post_processing.py')
-        node2.wait()
-        print("Finished post processing")
+        run_node('post_processing.py')
         
-    print("Pipeline finished for ws:", rospy.get_param("/ws", "UNDEFINED"))
+    if rospy.get_param("run_image_reconstruction", False):
+        run_node('image_reconstruction.py')
+        
+    print("Pipeline finished")

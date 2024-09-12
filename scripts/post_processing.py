@@ -32,7 +32,7 @@ if __name__ == "__main__":
     print(f"Removing statistical outliers with number of neighbors: {nn} std ratio: {std_ratio}")
     pcd = apply_filter(pcd, lambda x: x.remove_statistical_outliers(nn, std_ratio)[0])
     
-    # Remove
+    # Down-sample based on planar grid
     grid_size = 0.1
     print(f"Perform planar grid down-sampling with grid size: {grid_size}")
     pcd = apply_filter(pcd, lambda x: t_grid_down_sample(x, grid_size))

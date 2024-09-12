@@ -16,7 +16,6 @@ def t_filter(pcd, channel, min=-np.inf, max=np.inf):
     val = t_get_channel(pcd, channel).flatten()
     mask = (val >= min) & (val <= max)
     
-    print(mask.sum())
     return pcd.select_by_mask(mask)
 
 
@@ -73,14 +72,40 @@ def t_channel_to_color(pcd, channel, colormap, p_lower=0, p_upper=100):
     return o3d.utility.Vector3dVector(c)
 
 
+def t_color_by_channel(pcd, channel, colormap=cv.COLORMAP_VIRIDIS, p_lower=2, p_upper=98):
+    vals = t_get_channel(pcd, channel)
+    v_min = np.percentile(vals, p_lower)
+    v_max = np.percentile(vals, p_upper)
+    
+    normalized = np.clip(255*(vals - v_min) / (v_max - v_min), 0, 255).astype(np.uint8)
+    color_map = cv.applyColorMap(normalized, colormap).squeeze()
+    
+    # Set the colors to the point cloud as Float32
+    pcd.point['colors'] = o3d.core.Tensor(color_map[:, :3].astype(np.float32) / 255.0, dtype=o3d.core.Dtype.Float32)
+    
+    # Use the normalized channel values to set the pointcloud colors
+    
+
+def t_color_enhance_by_channel(pcd, channel, p_lower=0, p_upper=100):
+    # Get the values of the specified channel
+    vals = t_get_channel(pcd, channel)
+    
+    # Calculate the percentiles for clipping
+    v_min = np.percentile(vals, p_lower)
+    v_max = np.percentile(vals, p_upper)
+    
+    # Normalize the channel values between 0 and 1
+    normalized = np.clip(255*(vals - v_min) / (v_max - v_min), 0, 1).astype(np.float32)
+    
+    pcd.point['colors'] = pcd.point['colors']*normalized
+
+
 def t_get_channel(pcd, channel):
     if channel == "topo":
-        return pcd.point.positions.numpy()[:, 2]
+        return -pcd.point.positions.numpy()[:, 2]
     elif channel == "color_norm":
         return np.mean(pcd.point.colors.numpy().squeeze(), axis=1)
     return pcd.point[channel].numpy()
-
-
 
 
 """
@@ -97,5 +122,7 @@ def t_grid_down_sample(pcd, voxel_size=0.1):
     pcd_down = pcd.voxel_down_sample(voxel_size)
     
     pcd_down.point.positions[:, 2] = pcd_down.point.topo.flatten()
+    pcd_down.point.erase("topo")
+    
     return pcd_down
     
