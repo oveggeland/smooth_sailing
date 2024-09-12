@@ -44,7 +44,6 @@ class poseExtractor:
         df = pd.read_csv(nav_file)
         
         n_rows = len(df)
-        print(n_rows)
         self.ts = np.zeros(n_rows)
         self.poses = np.empty(n_rows, dtype=object)
         
@@ -78,10 +77,16 @@ if __name__ == "__main__":
     rospy.init_node("image_reconstruction_node")
     ws = rospy.get_param("/ws")
     
+    # Make output path
+    output_path = os.path.join(ws, "images", "reconstructed")
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+        
+        
     # Read pointcloud
     pcd = o3d.t.io.read_point_cloud(os.path.join(ws, "processed.ply"))    
     t_color_by_channel(pcd, "intensities", cv.COLORMAP_HOT, 1, 99)
-    #t_color_enhance_by_channel(pcd, "intensities", p_upper=30) # Everything with less than 30p intensity should have reduced visibility
+    t_color_enhance_by_channel(pcd, "intensities", p_upper=95) # Everything with less than 30p intensity should have reduced visibility
     
     # Read bag
     bag = rosbag.Bag(os.path.join(ws, "cooked.bag"))
@@ -109,7 +114,7 @@ if __name__ == "__main__":
             img = image_renderer.render_image(T_cam=Twc.inverse().matrix())
             
             # Save to file
-            cv.imwrite(os.path.join(ws, "images", "topo_enhanced", f"frame_{seq:04d}.png"), img)
+            cv.imwrite(os.path.join(output_path, f"frame_{seq:04d}.png"), img)
             
             cv.imshow("TEST", img)
             k = cv.waitKey(1)

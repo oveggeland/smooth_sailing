@@ -1,13 +1,13 @@
-ws: "/home/oskar/smooth_sailing/data/my_workspace/"
+ws: "/home/oskar/smooth_sailing/data/ws_right1/"
 max_time_interval: 300
 
 minimal: False # TODO: Use minimal flag to turn off ship verifiation, image extraction etc. 
 
-run_workspace_preparation: false
-run_navigation: false
-run_navigation_evaluation: false
-run_mapping: false
-run_post_processing: false
+run_workspace_preparation: true
+run_navigation: true
+run_navigation_evaluation: true
+run_mapping: true
+run_post_processing: true
 run_image_reconstruction: true
 
 ext_file: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/ext_right.yaml"

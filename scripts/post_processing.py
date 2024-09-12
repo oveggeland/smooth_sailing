@@ -37,4 +37,5 @@ if __name__ == "__main__":
     print(f"Perform planar grid down-sampling with grid size: {grid_size}")
     pcd = apply_filter(pcd, lambda x: t_grid_down_sample(x, grid_size))
     
+    
     o3d.t.io.write_point_cloud(os.path.join(ws, "processed.ply"), pcd)

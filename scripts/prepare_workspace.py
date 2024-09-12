@@ -72,7 +72,12 @@ def extract_ship_data(ws):
         ship_data[i, 8] = msg.sog
     
     df = pd.DataFrame(ship_data, columns=["ts", "x", "y", "z", "roll", "pitch", "heading", "course", "speed"])
-    df.to_csv(os.path.join(ws, "navigation", "ship.csv"))
+    
+    # Check if the output folder exists, create if it doesn't
+    output_path = os.path.join(ws, "navigation")
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    df.to_csv(os.path.join(output_path, "ship.csv"))
 
 
 if __name__ == "__main__":

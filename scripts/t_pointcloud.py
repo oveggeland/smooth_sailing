@@ -102,7 +102,7 @@ def t_color_enhance_by_channel(pcd, channel, p_lower=0, p_upper=100):
 
 def t_get_channel(pcd, channel):
     if channel == "topo":
-        return -pcd.point.positions.numpy()[:, 2]
+        return pcd.point.positions.numpy()[:, 2]
     elif channel == "color_norm":
         return np.mean(pcd.point.colors.numpy().squeeze(), axis=1)
     return pcd.point[channel].numpy()
