@@ -19,6 +19,8 @@
 #include <open3d/core/Tensor.h>
 #include <open3d/t/geometry/PointCloud.h>
 
+#include <filesystem>
+namespace fs = std::filesystem;
 
 using namespace gtsam;
 using namespace std;
@@ -200,7 +202,7 @@ void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& ba
 
                 intensities.push_back(point.intensity);
                 distances.push_back(distance2); // Distance squared, to save computational costs
-                timestamps.push_back(ts_point - 1704067200);
+                timestamps.push_back(ts_point);
 
                 cnt ++;
             }
@@ -227,20 +229,22 @@ void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& ba
 int main(int argc, char** argv){
     ros::init(argc, argv, "mapping_node");
     ros::NodeHandle nh("~");
-
-    cout << fixed << setprecision(20);
     
     std::string workspace;
     if (!nh.getParam("/ws", workspace)){
         cout << "Error: No workspace provided" << endl;
         exit(1);
     }
-
-    Pose3 Tbl = readTbl(workspace + "calib/ext.yaml");
-
-    std::map<double, Pose3> lidarPoseMap = buildLidarPoseMap(workspace + "nav.txt", Tbl);
     
-    buildPointCloud(lidarPoseMap, workspace + "cooked.bag", workspace + "raw.ply");
+    std::string ext_file;
+    nh.getParam("/ext_file", ext_file);
+    Pose3 Tbl = readTbl(ext_file);
+
+    std::string nav_file = fs::path(workspace) / "navigation" / "nav.csv"; 
+    std::map<double, Pose3> lidarPoseMap = buildLidarPoseMap(nav_file, Tbl);
+    
+    //double t_offset = YAML::LoadFile(fs::path(workspace) / "navigation" / "nav_info.yaml")["t0"].as<double>();
+    buildPointCloud(lidarPoseMap, fs::path(workspace) / "cooked.bag", fs::path(workspace) / "raw.ply");
 
     return 0;
 }

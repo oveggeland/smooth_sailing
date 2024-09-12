@@ -21,5 +21,11 @@ if __name__ == "__main__":
         node2 = launch_node('smooth_sailing' ,'navigation')
         node2.wait()
         print("Finished navigation")
+        
+    if rospy.get_param("run_mapping", False):
+        print("Running mapping")
+        node2 = launch_node('smooth_sailing' ,'mapping')
+        node2.wait()
+        print("Finished mapping")
     
     print("Pipeline finished for ws:", rospy.get_param("/ws", "UNDEFINED"))
