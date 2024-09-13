@@ -3,6 +3,7 @@
 
 #include "smooth_sailing/gnss.h"
 #include "smooth_sailing/imu.h"
+#include "smooth_sailing/lidar.h"
 #include "smooth_sailing/altitudeFactor.h"
 #include "smooth_sailing/graph.h"
 
@@ -21,6 +22,7 @@ class IceNav{
         // Sensor specific entry points
         void newImuMsg(p_imu_msg msg);
         void newGNSSMsg(p_gnss_msg msg);
+        void newLidarMsg(sensor_msgs::PointCloud2::ConstPtr msg);
 
         // Write
         void finish(const std::string& outdir);
@@ -28,6 +30,8 @@ class IceNav{
     private:
         void checkInit(double ts);
         void newCorrection(double ts);
+
+        Pose3 getCurrentPose();
         
 
         // Control parameters
@@ -51,6 +55,7 @@ class IceNav{
         // Handle for different sensors
         IMUHandle imu_handle;
         GNSSHandle gnss_handle;
+        LidarHandle lidar_handle;
 
         // Virtual height
         int virtual_height_interval_;

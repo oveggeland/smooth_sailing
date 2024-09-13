@@ -5,6 +5,7 @@ IceNav::IceNav(const YAML::Node& config){
     graph_handle = GraphHandle(config);
     imu_handle = IMUHandle(config);
     gnss_handle = GNSSHandle(config);
+    lidar_handle = LidarHandle(config);
 
     virtual_height_interval_ = config["virtual_height_interval"].as<int>();
     virtual_height_sigma_ = config["virtual_height_sigma"].as<double>();
@@ -50,6 +51,25 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
     }
 }
 
+
+Pose3 IceNav::getCurrentPose(){
+    return imu_handle.predict(state_, bias_).pose();
+}
+
+void IceNav::newLidarMsg(sensor_msgs::PointCloud2::ConstPtr msg){
+    if (!is_init_)
+        return;
+
+    if (!lidar_handle.isInit()){
+        lidar_handle.init(msg, correction_count_);
+        newCorrection(msg->header.stamp.toSec());
+    }
+    else if (lidar_handle.newFrame(msg)){
+        auto lidarFactor = lidar_handle.getOdometryFactor(correction_count_);
+        graph_handle.addFactor(lidarFactor);
+    }
+}
+
 void IceNav::newCorrection(double ts_correction){
     correction_stamps_.push_back(ts_correction);
 
@@ -59,7 +79,7 @@ void IceNav::newCorrection(double ts_correction){
     cout << "Add IMU factor between " << correction_count_ - 1 << " and " << correction_count_ << endl;
 
     // Add dummy altitude factor
-    if (correction_count_ % virtual_height_interval_ == 0){
+    if (correction_count_ % virtual_height_interval_ == 0){ // TODO: Base this on time, not correction count
         auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
         //graph_handle.addFactor(altitudeFactor);
         cout << "Adding altitude factor at " << correction_count_ << endl;
@@ -70,7 +90,7 @@ void IceNav::newCorrection(double ts_correction){
     
     graph_handle.addNewValues(state_, bias_, correction_count_);
 
-    if (correction_count_ % optimize_interval_ == 0)
+    if (correction_count_ % optimize_interval_ == 0) // TODO: This should be time based
         graph_handle.optimizeAndUpdateValues();
     graph_handle.fromValues(state_, bias_, correction_count_);
     imu_handle.resetIntegration(ts_correction, bias_);

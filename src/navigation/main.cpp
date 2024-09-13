@@ -72,6 +72,13 @@ int main(int argc, char **argv)
         else if (msg_type == "sensor_msgs/NavSatFix"){
             ice_nav.newGNSSMsg(m.instantiate<sensor_msgs::NavSatFix>());
         }
+
+        else if (msg_type == "sensor_msgs/PointCloud2"){
+            ice_nav.newLidarMsg(m.instantiate<sensor_msgs::PointCloud2>());
+        }
+
+        if (!ros::ok())
+            break;
     }
 
     // Close up shop

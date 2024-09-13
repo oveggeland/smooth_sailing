@@ -1,5 +1,5 @@
-#ifndef LIDAR_H
-#define LIDAR_H
+#ifndef ALTITUDEFACTOR_H
+#define ALTITUDEFACTOR_H
 
 #include <string.h>
 #include <proj.h>
