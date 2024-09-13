@@ -100,12 +100,6 @@ def find_in_yaml(file, key, default=None):
             print(file, "does not contain key", key)
             return default
         
-
-def extract_nav_data(path):
-    return  pd.read_csv(path, sep=",")
-
-
-
 def plot_navigation(nav_data):
     # Create the figure and subplots (3x2 layout)
     fig, axs = plt.subplots(3, 2, figsize=(12, 10), num="Overview")
@@ -158,6 +152,41 @@ def plot_navigation(nav_data):
     # Adjust layout to avoid overlapping of labels
     plt.tight_layout(pad=3.0)
 
+
+def evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm):
+    # Ship prediction
+    pred_pos = predict_position_from_ship_data(ship_data, lever_arm)
+    pred_time = ship_data["ts"].values
+    pred_north, pred_east = pred_pos[:, 0], pred_pos[:, 1]
+    
+    m_time, m_north, m_east = gnss_data.values.T
+
+    # Find the min and max times
+    t_min, t_max = max(pred_time.min(), m_time.min()), min(pred_time.max(), m_time.max())
+    
+    m_idx = ( m_time >= t_min ) & ( m_time <= t_max )
+    m_time, m_north, m_east = m_time[m_idx], m_north[m_idx], m_east[m_idx]
+    
+    pred_east = np.interp(m_time, pred_time, pred_east)
+    pred_north = np.interp(m_time, pred_time, pred_north)
+    d_east = pred_east - m_east
+    d_north = pred_north - m_north
+    
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5), num="GNSS")
+    ax0, ax1, ax2 = axs.flatten()
+    
+    ax0.scatter(pred_east, pred_north, c=m_time, marker='o', label="Ship prediction")
+    ax0.scatter(m_east, m_north, marker='x', label="Measured position")
+    ax0.legend()
+        
+    cmap = ax1.scatter(d_east, d_north, c=m_time)
+    fig.colorbar(cmap, ax=ax1)
+    
+    ax2.plot(m_time, d_east, label="Eastern deviation")
+    ax2.plot(m_time, d_north, label="Northern deviation")
+    ax2.legend()
+    
+
 if __name__ == "__main__":
     rospy.init_node("navigation_evaluation_node")
 
@@ -168,10 +197,17 @@ if __name__ == "__main__":
     ship_data = pd.read_csv(os.path.join(ws, "navigation", "ship.csv"))
     
     # Extract navigation estimates
-    nav_data = extract_nav_data(os.path.join(ws, "navigation", "nav.csv"))
+    nav_data = pd.read_csv(os.path.join(ws, "navigation", "nav.csv"))
+    
+    gnss_data = pd.read_csv(os.path.join(ws, "navigation", "gnss.csv"))
+    
+    lever_arm = find_in_yaml(nav_config, "lever_arm")
     
     
-    compare_navigation(nav_data, ship_data, find_in_yaml(nav_config, "lever_arm"))
+    evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm)
+    plt.savefig(os.path.join(ws, "navigation", "gnss_evaluation.png"))    
+    
+    compare_navigation(nav_data, ship_data, lever_arm)
     plt.savefig(os.path.join(ws, "navigation", "ship_comparison.png"))    
 
     plot_navigation(nav_data)

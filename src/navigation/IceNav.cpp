@@ -102,6 +102,8 @@ void IceNav::finish(const std::string& outdir){
     graph_handle.optimizeAndUpdateValues(true);
     graph_handle.writeResults(correction_count_, correction_stamps_, std::filesystem::path(outdir) / "nav.csv");
 
+    gnss_handle.writeToFile(std::filesystem::path(outdir) / "gnss.csv");
+
     // Write nav info yaml
     YAML::Node config;
 

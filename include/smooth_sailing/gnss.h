@@ -21,6 +21,14 @@ using namespace gtsam;
 
 typedef sensor_msgs::NavSatFix::ConstPtr p_gnss_msg;
 
+typedef struct{
+    _Float64 ts;
+    _Float64 north;
+    _Float64 east;
+} GnssMeasurement;
+
+
+
 class GNSSHandle{
     public:
         // Constructors
@@ -31,6 +39,8 @@ class GNSSHandle{
 
         GNSSFactor getCorrectionFactor(Point2 xy, int correction_count);
         void getOffset(double &x0, double &y0);
+
+        void writeToFile(const std::string& out_file);
 
     private:
         // Noise parameters
@@ -48,6 +58,8 @@ class GNSSHandle{
         PJ_COORD input_coords, output_coords; // https://proj.org/development/reference/datatypes.html#c.PJ_COORD
 
         _Float64 x0_, y0_; // Offsets
+
+        std::vector<GnssMeasurement> measurements_;
 };
 
 

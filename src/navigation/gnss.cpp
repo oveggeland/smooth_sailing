@@ -36,7 +36,12 @@ Point2 GNSSHandle::getMeasurement(p_gnss_msg msg){
         y0_ = output_coords.xy.y;
     }
 
-
+    GnssMeasurement m {
+        msg->header.stamp.toSec(),
+        output_coords.xy.y,
+        output_coords.xy.x
+    };
+    measurements_.push_back(m);
     
     return Point2(output_coords.xy.y - y0_, output_coords.xy.x - x0_);
 }
@@ -45,4 +50,20 @@ Point2 GNSSHandle::getMeasurement(p_gnss_msg msg){
 void GNSSHandle::getOffset(double &x0, double &y0){
     x0 = x0_;
     y0 = y0_;
+}
+
+
+
+
+void GNSSHandle::writeToFile(const std::string& out_file){
+    ofstream f(out_file);
+
+    f << "ts,north,east" << endl;
+    f << fixed;
+
+    for (auto m: measurements_){
+        f << m.ts << "," << m.north << "," << m.east << endl;
+    }
+    
+    f.close();
 }
