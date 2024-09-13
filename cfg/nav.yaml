@@ -3,18 +3,19 @@ lever_arm: [0, 10, -17]
 
 initial_heading: 0 # Rads
 
-# Uncertanties on initial values
+# Uncertanties on initial values (The priors on veocity and biases will be removed before final optimization)
 initial_velocity_sigma: [2, 2, 0.05]
 initial_attitude_sigma: 0.5
-initial_imu_bias_sigma: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1] # ax, ay, az, gx, gy, gz
+initial_imu_bias_sigma: [0.1, 0.1, 0.1, 0.01, 0.01, 0.01] # ax, ay, az, gx, gy, gz
 
 # IMU noise parameters
 imu_accel_noise_sigma: 1.0e-3         # Accelerometer noise (continous)
-imu_gyro_noise_sigma: 1.0e-4          # Gyro noise (continous)
+imu_gyro_noise_sigma: 2.0e-4          # Gyro noise (continous)
 imu_accel_bias_rw_sigma: 1.0e-4       # No bias drift
 imu_gyro_bias_rw_sigma: 1.0e-5        # No bias drift
 
-imu_acc_scale: 1 # We should for sure calibrate the scale values at some point
+imu_acc_scale: 0.986 # Based on stationary data collection in independence fjord
+# For left system, the value is 0.998
 
 # GNSS stuff
 gnss_sigma: 0.5                 # TODO: Sigma of measurement error
@@ -25,3 +26,8 @@ gnss_crs_target: "EPSG:6052"
 # Virtual height
 virtual_height_interval: 1
 virtual_height_sigma: 1
+
+optimize_interval: 5 # Sub-problem optimization
+optimize_remove_priors: False
+optimize_add_noise: False
+optimize_zero_bias: False

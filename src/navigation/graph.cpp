@@ -4,6 +4,10 @@
 // Constructor
 GraphHandle::GraphHandle(const YAML::Node& config){
     this->config = config;
+
+    remove_priors_ = config["optimize_remove_priors"].as<bool>();
+    add_noise_ = config["optimize_add_noise"].as<bool>();
+    zero_bias_ = config["optimize_zero_bias"].as<bool>();
 }
 
 /*
@@ -21,19 +25,9 @@ void GraphHandle::initialize(){
     auto bias_noise_model = noiseModel::Diagonal::Sigmas(Vector6::Map(config["initial_imu_bias_sigma"].as<std::vector<double>>().data(), 6)); 
     graph.addPrior(B(0), prior_imu_bias, bias_noise_model);
 
-
     // Velocity prior
     auto velocity_noise_model = noiseModel::Diagonal::Sigmas(Vector3::Map(config["initial_velocity_sigma"].as<std::vector<double>>().data(), 3)); 
     graph.addPrior(V(0), prior_vel, velocity_noise_model);
-
-    // Prior on position
-    auto gnss_factor = GPSFactor(X(0), prior_pos, noiseModel::Diagonal::Sigmas(
-        Vector3(config["gnss_sigma"].as<double>(), 
-                config["gnss_sigma"].as<double>(), 
-                config["virtual_height_sigma"].as<double>()
-        )
-    ));
-    graph.add(gnss_factor);
 
     // Prior on attitude. Documentation is very confusing here, regarding what should be the nav/body frame
     auto attitudeFactor = Pose3AttitudeFactor(X(0), Unit3(0, 0, 1), 
@@ -41,6 +35,15 @@ void GraphHandle::initialize(){
         Unit3(-nZ_)
     );
     graph.add(attitudeFactor);
+
+    // Prior on position // TODO: Move this to IceNav
+    auto gnss_factor = GPSFactor(X(0), prior_pos, noiseModel::Diagonal::Sigmas(
+        Vector3(config["gnss_sigma"].as<double>(), 
+                config["gnss_sigma"].as<double>(), 
+                config["virtual_height_sigma"].as<double>()
+        )
+    ));
+    graph.add(gnss_factor);
 }
 
 void GraphHandle::addNewValues(const NavState state, const imuBias::ConstantBias bias, const int correction_count){
@@ -49,12 +52,55 @@ void GraphHandle::addNewValues(const NavState state, const imuBias::ConstantBias
     values_.insert(B(correction_count), bias);
 }
 
-void GraphHandle::optimizeAndUpdateValues(bool verbose){
-    LevenbergMarquardtParams p;
-    if (verbose) p.setVerbosityLM("SUMMARY");
 
+
+
+void GraphHandle::optimizeAndUpdateValues(bool final){
+    LevenbergMarquardtParams p;
+    if (final){
+        p.setVerbosityLM("SUMMARY");
+
+        if (remove_priors_){
+            graph.remove(0); // Bias prior
+            graph.remove(1); // Velocity prior
+            graph.remove(2); // Attitude prior
+        }   
+
+        if (add_noise_){
+            Vector perturbation = Vector::Random(values_.dim());
+            gtsam::VectorValues delta;
+            size_t dimension = 0;
+            for (const auto& key_value : values_) {
+                Key key = key_value.key;
+
+                size_t dim = values_.at(key).dim();
+                delta.insert(key, perturbation.segment(dimension, dim));
+                dimension += dim;
+            }
+            values_ = values_.retract(delta);
+        }
+
+        if (zero_bias_){
+            // Set all bias estimates to 0 before last optimization
+            for (const auto& key_value : values_) {
+                Key key = key_value.key;
+                const Value& value = key_value.value;
+                
+                try {
+                    const gtsam::imuBias::ConstantBias& bias = value.cast<gtsam::imuBias::ConstantBias>();
+                    // If we get here, it's an IMU bias
+                    gtsam::imuBias::ConstantBias zeroBias;
+                    cout << "Setting bias at key :" << key << endl;
+                    values_.update(key, zeroBias);
+                } catch (const std::bad_cast&) {
+                    // Not an IMU bias, do nothing
+                }
+            }
+        }
+    }
     LevenbergMarquardtOptimizer optimizer(graph, values_, p);
     values_ = optimizer.optimize();
+
 }
 
 

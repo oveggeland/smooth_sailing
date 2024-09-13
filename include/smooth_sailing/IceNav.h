@@ -56,6 +56,7 @@ class IceNav{
         int virtual_height_interval_;
         double virtual_height_sigma_;
 
+        int optimize_interval_;
     
 };
 

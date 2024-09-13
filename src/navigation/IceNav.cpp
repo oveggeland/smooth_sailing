@@ -8,6 +8,8 @@ IceNav::IceNav(const YAML::Node& config){
 
     virtual_height_interval_ = config["virtual_height_interval"].as<int>();
     virtual_height_sigma_ = config["virtual_height_sigma"].as<double>();
+
+    optimize_interval_ = config["optimize_interval"].as<int>();
 }
 
 // Entry point for new IMU measurements
@@ -68,7 +70,8 @@ void IceNav::newCorrection(double ts_correction){
     
     graph_handle.addNewValues(state_, bias_, correction_count_);
 
-    graph_handle.optimizeAndUpdateValues();
+    if (correction_count_ % optimize_interval_ == 0)
+        graph_handle.optimizeAndUpdateValues();
     graph_handle.fromValues(state_, bias_, correction_count_);
     imu_handle.resetIntegration(ts_correction, bias_);
 

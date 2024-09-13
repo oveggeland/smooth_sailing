@@ -36,7 +36,7 @@ class GraphHandle{
 
         // Values
         void addNewValues(const NavState state, const imuBias::ConstantBias bias, const int correction_count);
-        void optimizeAndUpdateValues(bool verbose=false);
+        void optimizeAndUpdateValues(bool final=false);
         void fromValues(NavState &state, imuBias::ConstantBias &bias, const int correction_count);
 
         // Write
@@ -64,6 +64,11 @@ class GraphHandle{
 
         imuBias::ConstantBias prior_imu_bias = imuBias::ConstantBias();  // assume zero initial bias
         Point2 prior_gnss_bias = Point2(0, 0); 
+
+        // Optimization config
+        bool remove_priors_;
+        bool add_noise_;
+        bool zero_bias_;
 };
 
 #endif

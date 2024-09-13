@@ -42,10 +42,12 @@ def ssa(angles, deg=True):
 
 def compare_navigation(nav_data, ship_data, lever_arm):
     nav_time = nav_data["ts"].to_numpy()
+    nav_time = nav_time - nav_time.min()
     nav_heading = nav_data["yaw"].to_numpy()*RAD2DEG
     nav_height = nav_data["z"].to_numpy()
     
     ship_time = ship_data["ts"].to_numpy()
+    ship_time = ship_time - ship_time.min()
     ship_heading = ship_data["heading"].to_numpy()
     ship_predicted_position = predict_position_from_ship_data(ship_data, lever_arm=lever_arm)
     ship_height_prediction = ship_predicted_position[:, 2]
@@ -54,21 +56,21 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     ax0, ax1, ax2, ax3 = axs.flatten()  # Flatten the 2x2 grid into a 1D array for easy access
 
     # Plot "True heading" on the first subplot
-    ax0.plot(ship_time, ship_heading, label="ship")
-    ax0.plot(nav_time, nav_heading, label="sys")
-    ax0.set_title("True heading")
+    ax0.plot(ship_time, ship_heading, label="Ship")
+    ax0.plot(nav_time, nav_heading, label="System")
+    ax0.set_ylabel("True heading [deg]")
     ax0.legend()
 
     # Plot "Normalized heading" on the second subplot
-    ax1.plot(ship_time, ssa(ship_heading - ship_heading[0]), label="ship")
-    ax1.plot(nav_time, ssa(nav_heading - nav_heading[0]), label="sys")
-    ax1.set_title("Normalized heading")
+    ax1.plot(ship_time, ssa(ship_heading - ship_heading[int(ship_time.size/2)]), label="Ship")
+    ax1.plot(nav_time, ssa(nav_heading - nav_heading[int(ship_time.size/2)]), label="System")
+    ax1.set_ylabel("Normalized heading [deg]")
     ax1.legend()
 
     # Plot "Comparing height" on the third subplot
-    ax2.plot(ship_time, ship_height_prediction - ship_height_prediction.mean(), label="ship")
-    ax2.plot(nav_time, nav_height - nav_height.mean(), label="sys")
-    ax2.set_title("Comparing height")
+    ax2.plot(ship_time, ship_height_prediction - ship_height_prediction.mean(), label="Ship prediction")
+    ax2.plot(nav_time, nav_height - nav_height.mean(), label="System")
+    ax2.set_ylabel("Vertical displacement [m]")
     ax2.legend()
     
     # Compare roll and pitch
@@ -78,10 +80,11 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     sys_roll = nav_data["roll"].values*RAD2DEG
     sys_pitch = nav_data["pitch"].values*RAD2DEG
     
-    ax3.plot(nav_data["ts"].values, sys_roll - sys_roll.mean(), c='r', linestyle='dashed', label="sys_roll")
-    ax3.plot(nav_data["ts"].values, sys_pitch - sys_pitch.mean(), c='b', linestyle='dashed', label="sys_roll")
-    ax3.plot(ship_data["ts"].values, ship_roll - ship_roll.mean(), c='g', label="ship_roll")
-    ax3.plot(ship_data["ts"].values, ship_pitch - ship_pitch.mean(), c='y',  label="ship_pitch")
+    ax3.plot(nav_data["ts"].values, sys_roll - sys_roll.mean(), c='r', linestyle='dashed', label="System roll")
+    ax3.plot(nav_data["ts"].values, sys_pitch - sys_pitch.mean(), c='b', linestyle='dashed', label="System pitch")
+    ax3.plot(ship_data["ts"].values, ship_roll - ship_roll.mean(), c='g', label="Ship roll")
+    ax3.plot(ship_data["ts"].values, ship_pitch - ship_pitch.mean(), c='y',  label="Ship pitch")
+    ax3.set_ylabel("Relative attitudes [deg]")
     ax3.legend()
 
     # Show the plot
@@ -167,11 +170,13 @@ if __name__ == "__main__":
     # Extract navigation estimates
     nav_data = extract_nav_data(os.path.join(ws, "navigation", "nav.csv"))
     
+    
+    compare_navigation(nav_data, ship_data, find_in_yaml(nav_config, "lever_arm"))
+    plt.savefig(os.path.join(ws, "navigation", "ship_comparison.png"))    
+
     plot_navigation(nav_data)
     plt.savefig(os.path.join(ws, "navigation", "trajectory.png"))
     
-    compare_navigation(nav_data, ship_data, find_in_yaml(nav_config, "lever_arm"))
-    plt.savefig(os.path.join(ws, "navigation", "ship_comparison.png"))
     
     
     try:
