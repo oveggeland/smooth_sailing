@@ -151,9 +151,10 @@ std::map<double, Pose3> buildLidarPoseMap(const std::string& filename, Pose3 Tbl
 #define MIN_X_DISTANCE 10
 
 
-void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& bag_filename, std::string out_file) {
+void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& bag_filename, std::string out_file, double max_interval) {
     // Open the bag
     rosbag::Bag bag(bag_filename);
+    double t_start = 0;
 
     // Set up a ROSBag view for the topic
     std::string topic = "/livox_lidar_node/pointcloud2";
@@ -176,6 +177,13 @@ void buildPointCloud(std::map<double, Pose3> lidarPoseMap, const std::string& ba
             _Float64 t0 = cloud_msg->header.stamp.toSec();
             _Float64 frame_interval = 2*pcl_cloud.size()*POINT_INTERVAL;
             _Float64 t1 = t0 + frame_interval; // LiDAR in dual return mode
+
+            if (t_start == 0){
+                t_start = t0;
+            }
+            else if (t0 - t_start > max_interval){
+                break;
+            }
             
             // Initial and end pose of lidar frame, if not available, skip to next frame
             Pose3 T0, T1;
@@ -244,7 +252,9 @@ int main(int argc, char** argv){
     std::map<double, Pose3> lidarPoseMap = buildLidarPoseMap(nav_file, Tbl);
     
     //double t_offset = YAML::LoadFile(fs::path(workspace) / "navigation" / "nav_info.yaml")["t0"].as<double>();
-    buildPointCloud(lidarPoseMap, fs::path(workspace) / "cooked.bag", fs::path(workspace) / "raw.ply");
+    double max_interval;
+    nh.getParam("/max_time_interval", max_interval);
+    buildPointCloud(lidarPoseMap, fs::path(workspace) / "cooked.bag", fs::path(workspace) / "raw.ply", max_interval);
 
     return 0;
 }

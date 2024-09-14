@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
     # Iterate over bag
     seq = 0
-    for (_, msg, _) in bag.read_messages(topics=["/blackfly_node/image"]):
+    for (_, msg, _) in bag.read_messages(topics=["/blackfly_node/image"], end_time=rospy.Time(bag.get_start_time() + rospy.get_param("max_time_interval"))):
         ts = msg.header.stamp.to_sec()
         
         Twb = pose_extractor.get_pose(ts)
