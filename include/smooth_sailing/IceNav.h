@@ -5,7 +5,10 @@
 #include "smooth_sailing/imu.h"
 #include "smooth_sailing/lidar.h"
 #include "smooth_sailing/altitudeFactor.h"
-#include "smooth_sailing/graph.h"
+
+#include "gtsam/navigation/GPSFactor.h"
+#include "gtsam/navigation/AttitudeFactor.h"
+#include "gtsam/nonlinear/LevenbergMarquardtOptimizer.h"
 
 #include "yaml-cpp/yaml.h"
 
@@ -28,41 +31,38 @@ class IceNav{
         void finish(const std::string& outdir);
 
     private:
-        void checkInit(double ts);
+        const YAML::Node config_;
+
+        NonlinearFactorGraph graph_;  // Factor graph class
+        Values values_;     // Best guess for all states
+
+        void initialize(double ts, Pose3 initial_pose);
+        void predictAndUpdate();
+
         void newCorrection(double ts);
 
-        Pose3 getCurrentPose();
-        
+        void writeToFile(const std::string& out_file);
+        void writeInfoYaml(const std::string& out_file);
 
         // Control parameters
-        bool gnss_init_ = false;
-        bool imu_init_ = false;
         bool is_init_ = false;
-        double t0_ = 0.0;
+        Vector3 nZ_;
 
-        int correction_count_;
+        int correction_count_ = 0; // TODO: Remove this?
         vector<double> correction_stamps_;
 
-        // Handle for factor graph
-        GraphHandle graph_handle;
-        Values values_; // Keep track of best guesses
-
-        // Current estimates
-        double ts_head_;
-        NavState state_;
-        imuBias::ConstantBias bias_;
-
         // Handle for different sensors
-        IMUHandle imu_handle;
-        GNSSHandle gnss_handle;
-        LidarHandle lidar_handle;
+        IMUHandle imu_handle_;
+        GNSSHandle gnss_handle_;
+        LidarHandle lidar_handle_;
+
+
 
         // Virtual height
         int virtual_height_interval_;
         double virtual_height_sigma_;
 
         int optimize_interval_;
-    
 };
 
 #endif

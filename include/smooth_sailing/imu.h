@@ -31,12 +31,18 @@ class IMUHandle{
 
         NavState predict(NavState prev_state, imuBias::ConstantBias prev_bias);
 
-        Rot3 getInitialRotation(p_imu_msg msg);
+        Rot3 getRotPrior();
+        void init(p_imu_msg);
+        Unit3 getNz();
 
-        bool isInit(){return is_init_;};
+        bool isInit(){
+            cout << "isInit will return " << is_init_ << endl;
+            return is_init_;
+        };
 
     private:
         boost::shared_ptr<gtsam::PreintegrationCombinedParams> getPreintegrationParams();
+
 
         // Control
         bool is_init_;

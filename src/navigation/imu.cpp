@@ -42,7 +42,6 @@ void IMUHandle::resetIntegration(double ts, imuBias::ConstantBias bias){
     preintegrated->resetIntegrationAndSetBias(bias);
 }
 
-
 /**
  * Used after initialization of the navigation system. Every new IMU measurement should be integrated in waiting for a new correction.
  */
@@ -88,20 +87,25 @@ NavState IMUHandle::predict(NavState prev_state, imuBias::ConstantBias prev_bias
 }
 
 
-// Estimate a initial pose of the IMU based on a measurement
-Rot3 IMUHandle::getInitialRotation(p_imu_msg msg){
-    // Allign acceleration and gravity for roll and pitch
-    Unit3 acc(getAcc(msg));
-    Unit3 g(0, 0, -1);
-
-    Rot3 R0 = Rot3::AlignPair(acc.cross(g), g, acc);
-    
-    // Align heading to fixed initial value
-    Rot3 R_align_heading = Rot3::Ypr(initial_heading - R0.ypr()[0], 0, 0);
-    R0 = R_align_heading.compose(R0);
-
-    return R0;
+void IMUHandle::init(p_imu_msg msg){
+    prev_acc_ = acc_scale_* getAcc(msg);
+    prev_rate_ = getRate(msg);
+    cout << "Setting is_init to true" << endl;
+    is_init_ = true;
 }
+
+Unit3 IMUHandle::getNz(){
+    return Unit3(prev_acc_);
+}
+
+// Estimate attitude from last acceleration measurement
+Rot3 IMUHandle::getRotPrior(){
+    Unit3 nZ_ = getNz();
+    Unit3 nG_(0, 0, -1);
+
+    return Rot3::AlignPair(nZ_.cross(nG_), nG_, nZ_);
+}
+
 
 boost::shared_ptr<gtsam::PreintegrationCombinedParams> IMUHandle::getPreintegrationParams() {
   // We use the sensor specs to build the noise model for the IMU factor.
