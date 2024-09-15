@@ -58,7 +58,7 @@ int main(int argc, char **argv)
             break;
         }
         else if (current_ts <= prev_ts){
-            ROS_WARN("Old message, skipping measurement");
+            ROS_WARN_STREAM("Old message, skipping measurement of type " << m.getDataType());
             continue;
         }
         prev_ts = current_ts;

@@ -40,6 +40,7 @@ class IceNav{
         void predictAndUpdate();
 
         void newCorrection(double ts);
+        void addVirtualHeightConstraint();
 
         void writeToFile(const std::string& out_file);
         void writeInfoYaml(const std::string& out_file);
@@ -56,11 +57,12 @@ class IceNav{
         GNSSHandle gnss_handle_;
         LidarHandle lidar_handle_;
 
-
+        int prior_count_ = 0;
 
         // Virtual height
         int virtual_height_interval_;
         double virtual_height_sigma_;
+        double t_last_height_factor_ = 0.0;
 
         int optimize_interval_;
 };

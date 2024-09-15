@@ -6,7 +6,7 @@ IceNav::IceNav(const YAML::Node& config): config_(config){
     gnss_handle_ = GNSSHandle(config_);
     lidar_handle_ = LidarHandle(config_);
 
-    virtual_height_interval_ = config_["virtual_height_interval"].as<int>();
+    virtual_height_interval_ = config_["virtual_height_interval"].as<double>();
     virtual_height_sigma_ = config_["virtual_height_sigma"].as<double>();
 
     optimize_interval_ = config_["optimize_interval"].as<int>();
@@ -15,7 +15,8 @@ IceNav::IceNav(const YAML::Node& config): config_(config){
 // Entry point for new IMU measurements
 void IceNav::newImuMsg(p_imu_msg msg){
     if (is_init_){
-        imu_handle_.integrate(msg);
+        if (imu_handle_.integrate(msg))
+            newCorrection(msg->header.stamp.toSec());
     }
     else{
         cout << "Init IMU" << endl;
@@ -29,9 +30,9 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
     Point2 xy = gnss_handle_.getMeasurement(msg);
 
     if (is_init_){
-        auto correction_factor = GPSFactor(X(correction_count_), (Vector(3) << xy, 0).finished(), noiseModel::Diagonal::Sigmas(Vector3(0.5, 0.5, 1)));
-        graph_.add(correction_factor);
         cout << "Add GNSS factor at " << correction_count_ << endl;
+        auto gnss_factor = gnss_handle_.getCorrectionFactor(xy, correction_count_);
+        graph_.add(gnss_factor);
 
         newCorrection(ts);
     }
@@ -43,8 +44,10 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
         initialize(ts, Pose3(R, t));
 
         // After initialization, we can add GNSS factor
-        auto correction_factor = GPSFactor(X(correction_count_), (Vector(3) << xy, 0).finished(), noiseModel::Diagonal::Sigmas(Vector3(0.5, 0.5, 1)));
-        graph_.add(correction_factor);
+        cout << "Add GNSS factor at " << correction_count_ << endl;
+        auto gnss_factor = gnss_handle_.getCorrectionFactor(xy, correction_count_);
+        graph_.add(gnss_factor);
+
         correction_count_ = 1;
     }
     else{
@@ -87,6 +90,12 @@ void IceNav::predictAndUpdate(){
     }
 }
 
+void IceNav::addVirtualHeightConstraint(){
+    cout << "Add virtual height constraint at " << correction_count_ << endl;
+    auto altitude_factor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+    graph_.add(altitude_factor);
+}
+
 void IceNav::newCorrection(double ts){
     correction_stamps_.push_back(ts);
 
@@ -95,8 +104,11 @@ void IceNav::newCorrection(double ts){
     graph_.add(imu_factor);
     cout << "Add IMU factor between " << correction_count_ - 1 << " and " << correction_count_ << endl;
 
-    // TODO: Add LiDAR factor?
-
+    // Consider height constraint
+    if (ts - t_last_height_factor_ > virtual_height_interval_){
+        addVirtualHeightConstraint();
+        t_last_height_factor_ = ts;
+    }
 
     // Propogate to get new initial values
     predictAndUpdate();
@@ -121,10 +133,12 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
     // Prior on bias
     auto bias_noise_model = noiseModel::Diagonal::Sigmas(Vector6::Map(config_["initial_imu_bias_sigma"].as<std::vector<double>>().data(), 6)); 
     graph_.addPrior(B(0), imuBias::ConstantBias(), bias_noise_model);
+    prior_count_ ++;
 
     // Prior on velocity 
     auto velocity_noise_model = noiseModel::Diagonal::Sigmas(Vector3::Map(config_["initial_velocity_sigma"].as<std::vector<double>>().data(), 3)); 
     graph_.addPrior(V(0), Vector3(), velocity_noise_model);
+    prior_count_ ++;
 
     // Prior on attitude. Documentation is very confusing here, regarding what should be the nav/body frame
     auto attitudeFactor = Pose3AttitudeFactor(X(0), Unit3(0, 0, 1), 
@@ -132,6 +146,7 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
         imu_handle_.getNz()
     );
     graph_.add(attitudeFactor);
+    prior_count_ ++;
 
     // Reset IMU 
     imu_handle_.resetIntegration(ts, imuBias::ConstantBias());
@@ -185,7 +200,17 @@ void IceNav::writeInfoYaml(const std::string& out_file){
 
 void IceNav::finish(const std::string& outdir){
     // Perform last update 
-    LevenbergMarquardtOptimizer optimizer(graph_, values_);
+    LevenbergMarquardtParams p;
+    p.setVerbosityLM("SUMMARY");
+
+    // Remove priors
+    if (config_["optimize_remove_priors"].as<bool>()){
+        for (int i = 0; i < prior_count_; i++){
+            graph_.remove(i);
+        }
+    }
+
+    LevenbergMarquardtOptimizer optimizer(graph_, values_, p);
     values_ = optimizer.optimize();
 
     // Results to file

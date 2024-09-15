@@ -21,7 +21,6 @@ Vector3 getRate(sensor_msgs::Imu::ConstPtr msg){
 IMUHandle::IMUHandle(const YAML::Node &config){
     // Import parameters from yaml
     gravity_norm_ = config["gravity_norm"].as<double>();
-    initial_heading = config["initial_heading"].as<double>();
 
     accel_noise_sigma = config["imu_accel_noise_sigma"].as<double>();
     gyro_noise_sigma = config["imu_gyro_noise_sigma"].as<double>();
@@ -29,6 +28,9 @@ IMUHandle::IMUHandle(const YAML::Node &config){
     gyro_bias_rw_sigma = config["imu_gyro_bias_rw_sigma"].as<double>();
 
     acc_scale_ = config["imu_acc_scale"].as<double>();
+    
+    split_integration_ = config["imu_split_integration"].as<bool>();
+    max_integration_interval_ = config["imu_max_integration_interval"].as<double>();
 
     // Pre-integration
     auto p = getPreintegrationParams();
@@ -38,6 +40,7 @@ IMUHandle::IMUHandle(const YAML::Node &config){
 }
 
 void IMUHandle::resetIntegration(double ts, imuBias::ConstantBias bias){
+    ts_tail_ = ts;
     ts_head_ = ts;
     preintegrated->resetIntegrationAndSetBias(bias);
 }
@@ -45,7 +48,7 @@ void IMUHandle::resetIntegration(double ts, imuBias::ConstantBias bias){
 /**
  * Used after initialization of the navigation system. Every new IMU measurement should be integrated in waiting for a new correction.
  */
-void IMUHandle::integrate(p_imu_msg msg){
+bool IMUHandle::integrate(p_imu_msg msg){
     double ts = msg->header.stamp.toSec();
     double dt = ts - ts_head_;
 
@@ -54,10 +57,18 @@ void IMUHandle::integrate(p_imu_msg msg){
     ts_head_ = ts;
 
     if (dt > 0.02){
-        cout << "DT = " << dt << " > 0.02, skipping integration" << endl;
-        return;
+        ROS_WARN_STREAM("DT = " << dt << " > 0.02, skipping integration");
     }
-    preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
+    else{
+        preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
+    }
+
+    if (split_integration_ && (ts - ts_tail_ > max_integration_interval_)){
+        ROS_INFO("Max integration time reached");
+        // This means it is time to suit up
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -65,12 +76,12 @@ void IMUHandle::integrate(p_imu_msg msg){
  */
 CombinedImuFactor IMUHandle::finishIntegration(double ts_correction, int correction_count){
     double dt = ts_correction - ts_head_;
-    assert(dt > 0 && dt < 0.02);
+    assert(dt >= 0 && dt < 0.02);
 
     if (dt > 0.02){
         cout << "DT = " << dt << " > 0.02, skipping integration" << endl;
     }
-    else{
+    else if (dt != 0.0){
         preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
     }
 
@@ -90,20 +101,19 @@ NavState IMUHandle::predict(NavState prev_state, imuBias::ConstantBias prev_bias
 void IMUHandle::init(p_imu_msg msg){
     prev_acc_ = acc_scale_* getAcc(msg);
     prev_rate_ = getRate(msg);
-    cout << "Setting is_init to true" << endl;
     is_init_ = true;
 }
 
 Unit3 IMUHandle::getNz(){
-    return Unit3(prev_acc_);
+    return Unit3(-prev_acc_);
 }
 
 // Estimate attitude from last acceleration measurement
 Rot3 IMUHandle::getRotPrior(){
-    Unit3 nZ_ = getNz();
-    Unit3 nG_(0, 0, -1);
+    Unit3 nA = getNz();
+    Unit3 nG(0, 0, 1);
 
-    return Rot3::AlignPair(nZ_.cross(nG_), nG_, nZ_);
+    return Rot3::AlignPair(nA.cross(nG), nG, nA);
 }
 
 

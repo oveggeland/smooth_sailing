@@ -1,8 +1,6 @@
 gravity_norm: 9.831 # Norm in m/s^2, sign and reference frame is sorted in imu.cpp
 lever_arm: [0, 10, -17]
 
-initial_heading: 0 # Rads
-
 # Uncertanties on initial values (The priors on veocity and biases will be removed before final optimization)
 initial_velocity_sigma: [2, 2, 0.05]
 initial_attitude_sigma: 0.5
@@ -13,6 +11,9 @@ imu_accel_noise_sigma: 1.0e-3         # Accelerometer noise (continous)
 imu_gyro_noise_sigma: 2.0e-4          # Gyro noise (continous)
 imu_accel_bias_rw_sigma: 1.0e-4       # No bias drift
 imu_gyro_bias_rw_sigma: 1.0e-5        # No bias drift
+
+imu_split_integration: true
+imu_max_integration_interval: 0.35 # Don't do more than 1.05 seconds of integration in one go.
 
 imu_acc_scale: 0.986 # Based on stationary data collection in independence fjord
 # For left system, the value is 0.998
@@ -27,7 +28,5 @@ gnss_crs_target: "EPSG:6052"
 virtual_height_interval: 1
 virtual_height_sigma: 1
 
-optimize_interval: 5 # Sub-problem optimization
-optimize_remove_priors: False
-optimize_add_noise: False
-optimize_zero_bias: False
+optimize_interval: 5 # Sub-problem optimization interval
+optimize_remove_priors: True
