@@ -12,14 +12,14 @@ imu_gyro_noise_sigma: 2.0e-4          # Gyro noise (continous)
 imu_accel_bias_rw_sigma: 1.0e-4       # No bias drift
 imu_gyro_bias_rw_sigma: 1.0e-5        # No bias drift
 
-imu_split_integration: true
+imu_split_integration: false
 imu_max_integration_interval: 0.35 # Don't do more than 1.05 seconds of integration in one go.
 
 imu_acc_scale: 0.986 # Based on stationary data collection in independence fjord
 # For left system, the value is 0.998
 
 # GNSS stuff
-gnss_sigma: 0.5                 # TODO: Sigma of measurement error
+gnss_sigma: 2                 # TODO: Sigma of measurement error
 
 gnss_crs_source: "EPSG:4326"
 gnss_crs_target: "EPSG:6052"

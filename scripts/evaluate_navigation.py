@@ -6,6 +6,8 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from scipy.spatial.transform import Rotation as Rot
 
+from scipy.optimize import minimize
+
 import pandas as pd
 
 import rospy
@@ -33,11 +35,18 @@ def predict_position_from_ship_data(ship_data, lever_arm):
         
     return ship_data[["x", "y", "z"]].to_numpy() + xyz_offset
 
-
+# Smallest signed angle
 def ssa(angles, deg=True):
     halfrot = 180 if deg else np.pi
     angles = np.where(angles < -halfrot, angles + 2*halfrot, angles)
     angles = np.where(angles > halfrot, angles - 2*halfrot, angles)
+    return angles
+
+# Smalles unsigned angle
+def sua(angles, deg=True):
+    rot = 360 if deg else 2*np.pi
+    angles = np.where(angles < 0, angles + rot, angles)
+    angles = np.where(angles > rot, angles - rot, angles)
     return angles
 
 def compare_navigation(nav_data, ship_data, lever_arm):
@@ -62,9 +71,15 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     ax0.legend()
 
     # Plot "Normalized heading" on the second subplot
-    ax1.plot(ship_time, ssa(ship_heading - ship_heading[int(ship_time.size/2)]), label="Ship")
-    ax1.plot(nav_time, ssa(nav_heading - nav_heading[int(ship_time.size/2)]), label="System")
-    ax1.set_ylabel("Normalized heading [deg]")
+    t0, t1 = max(ship_time.min(), nav_time.min()), min(ship_time.max(), nav_time.max())
+    int_idx = (nav_time >= t0) & (nav_time <= t1)
+    ship_heading_int = np.interp(nav_time[int_idx], ship_time, ssa(ship_heading))
+    
+    diff = sua(ship_heading_int - nav_heading[int_idx])
+    
+    ax1.plot(nav_time[int_idx], diff)
+    ax1.axhline(diff.mean(), linestyle="dashed")
+    ax1.set_ylabel("Difference in heading [deg]")
     ax1.legend()
 
     # Plot "Comparing height" on the third subplot
@@ -153,6 +168,32 @@ def plot_navigation(nav_data):
     plt.tight_layout(pad=3.0)
 
 
+def error(m_xy, ship_data, lever_arm):
+    pred_pos = predict_position_from_ship_data(ship_data, lever_arm)[:, :2]
+    return np.sum((pred_pos[:, :2] - m_xy)**2)
+    
+
+def find_optimal_lever_arm(ship_data, gnss_data, t0, t1):
+    m_t, m_x, m_y = gnss_data.values.T
+    
+    t_ship = ship_data["ts"].values
+    
+    idx = (t_ship >= t0) & (t_ship <= t1)
+    ship_data = ship_data.iloc[idx]
+    
+    # TODO: This is a bit shady, interpolation should probably be on ship data instead
+    m_x = np.interp(ship_data["ts"].values, m_t, m_x)
+    m_y = np.interp(ship_data["ts"].values, m_t, m_y)
+    
+    fnc = lambda L: error(np.stack((m_x, m_y), axis=1), ship_data, L)
+    L0 = np.array([0, 9.5, -17])
+    
+    res = minimize(fnc, L0)
+    print(res.x)
+
+    
+
+
 def evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm):
     # Ship prediction
     pred_pos = predict_position_from_ship_data(ship_data, lever_arm)
@@ -163,6 +204,7 @@ def evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm):
 
     # Find the min and max times
     t_min, t_max = max(pred_time.min(), m_time.min()), min(pred_time.max(), m_time.max())
+    find_optimal_lever_arm(ship_data, gnss_data, t_min, t_max)
     
     m_idx = ( m_time >= t_min ) & ( m_time <= t_max )
     m_time, m_north, m_east = m_time[m_idx], m_north[m_idx], m_east[m_idx]
@@ -184,7 +226,44 @@ def evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm):
     
     ax2.plot(m_time, d_east, label="Eastern deviation")
     ax2.plot(m_time, d_north, label="Northern deviation")
+    #ax2.plot(pred_time, ship_data["heading"].values*DEG2RAD, label="Ship heading")
     ax2.legend()
+    
+    
+def heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm):
+    # Ship prediction
+    pred_pos = predict_position_from_ship_data(ship_data, lever_arm)
+    pred_time = ship_data["ts"].values
+    pred_north, pred_east = pred_pos[:, 0], pred_pos[:, 1]
+    
+    m_time, m_north, m_east = gnss_data.values.T
+
+    # Find the min and max times
+    t_min, t_max = max(pred_time.min(), m_time.min()), min(pred_time.max(), m_time.max())
+    find_optimal_lever_arm(ship_data, gnss_data, t_min, t_max)
+    
+    m_idx = ( m_time >= t_min ) & ( m_time <= t_max )
+    m_time, m_north, m_east = m_time[m_idx], m_north[m_idx], m_east[m_idx]
+    
+    pred_east = np.interp(m_time, pred_time, pred_east)
+    pred_north = np.interp(m_time, pred_time, pred_north)
+    d_east = pred_east - m_east
+    d_north = pred_north - m_north
+    
+    fig, axs = plt.subplots(2, 1, sharex=True, figsize=(15, 5), num="Heading vs GNSS deviation")
+    ax0, ax1 = axs.flatten()
+    
+    # 
+    ship_heading=ship_data["heading"].values
+    sys_heading=nav_data["yaw"].values*DEG2RAD
+    ax0.plot(pred_time, ship_heading, label="Ship heading")
+    ax0.legend()
+
+    
+    ax1.plot(m_time, d_east, label="Eastern deviation")
+    ax1.plot(m_time, d_north, label="Northern deviation")
+    #ax2.plot(pred_time, ship_data["heading"].values*DEG2RAD, label="Ship heading")
+    ax1.legend()
     
 
 if __name__ == "__main__":
@@ -203,6 +282,9 @@ if __name__ == "__main__":
     
     lever_arm = find_in_yaml(nav_config, "lever_arm")
     
+    
+    
+    heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm)
     
     evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm)
     plt.savefig(os.path.join(ws, "navigation", "gnss_evaluation.png"))    
