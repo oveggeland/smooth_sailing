@@ -10,6 +10,8 @@ IceNav::IceNav(const YAML::Node& config): config_(config){
     virtual_height_sigma_ = config_["virtual_height_sigma"].as<double>();
 
     optimize_interval_ = config_["optimize_interval"].as<int>();
+
+    useLeveredHeight_ = config_["virtual_height_levered"].as<bool>();
 }
 
 // Entry point for new IMU measurements
@@ -91,9 +93,16 @@ void IceNav::predictAndUpdate(){
 }
 
 void IceNav::addVirtualHeightConstraint(){
-    cout << "Add virtual height constraint at " << correction_count_ << endl;
-    auto altitude_factor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
-    graph_.add(altitude_factor);
+    if (useLeveredHeight_){
+        cout << "Add levered altitude constraint at " << correction_count_ << endl;
+        auto altitude_factor = LeveredAltitudeFactor(X(correction_count_), L(0), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        graph_.add(altitude_factor);
+    }
+    else{
+        cout << "Add altitude constraint at " << correction_count_ << endl;
+        auto altitude_factor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        graph_.add(altitude_factor);
+    }
 }
 
 void IceNav::newCorrection(double ts){
@@ -130,6 +139,24 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
     values_.insert(V(0), Point3());
     values_.insert(B(0), imuBias::ConstantBias());
 
+    if (useLeveredHeight_){
+        values_.insert(L(0), Point3()); // No cheating here...
+
+        // Prior on lever arm (essentially fixing this)
+        // auto lever_noise_model = noiseModel::Isotropic::Sigma(3, 0.1);
+        // graph_.addPrior(L(0), Point3(0, 0, 20), lever_noise_model);
+        // prior_count_ ++;
+
+        // Prior on lever arm norm
+        double max_norm = 50;
+        auto lever_norm_factor = Point3NormConstraintFactor(L(0), max_norm, noiseModel::Isotropic::Sigma(1, 0.1));
+        graph_.add(lever_norm_factor);
+
+        // Prior on lever arm angle w.r.t gravity (Must be less than 90 degrees)
+        double max_angle = 90;
+        auto lever_angle_norm_factor = AngularConstraintFactor(L(0), imu_handle_.getNz(), max_angle * DEG2RAD, noiseModel::Isotropic::Sigma(1, 0.01));
+        graph_.add(lever_angle_norm_factor);
+    }
     // Prior on bias
     auto bias_noise_model = noiseModel::Diagonal::Sigmas(Vector6::Map(config_["initial_imu_bias_sigma"].as<std::vector<double>>().data(), 6)); 
     graph_.addPrior(B(0), imuBias::ConstantBias(), bias_noise_model);
@@ -191,10 +218,32 @@ void IceNav::writeInfoYaml(const std::string& out_file){
     YAML::Emitter emitter;
     emitter << nav_info;
 
+    if (useLeveredHeight_){
+        Point3 lever_arm = values_.at<Point3>(L(0));
+        emitter << YAML::Key << "lever_arm";
+        emitter << YAML::Value << YAML::Flow << YAML::BeginSeq << lever_arm(0) << lever_arm(1) << lever_arm(2) << YAML::EndSeq;
+    }
     // Write to a file
     std::ofstream fout(out_file);
     fout << emitter.c_str();
     fout.close();
+}
+
+
+void IceNav::writeHeightMeasurements(const std::string& out_file){
+    ofstream f(out_file);
+
+    f << "ts,altitude" << endl << fixed; 
+
+    double height = 0;
+    for (int i = 0; i < correction_count_; i++){ // TODO
+        if (useLeveredHeight_)
+            height = values_.at<Pose3>(X(i)).rotation().rotate(values_.at<Point3>(L(0)))[2];
+
+        f << correction_stamps_[i] << "," << height << endl;
+    }
+
+    f.close();
 }
 
 
@@ -213,10 +262,12 @@ void IceNav::finish(const std::string& outdir){
     LevenbergMarquardtOptimizer optimizer(graph_, values_, p);
     values_ = optimizer.optimize();
 
-    // Results to file
-    writeToFile(std::filesystem::path(outdir) / "nav.csv");
-    gnss_handle_.writeToFile(std::filesystem::path(outdir) / "gnss.csv");
+    // Write stuff to files
+    std::filesystem::path outpath(outdir);
 
-    // Write nav info yaml
-    writeInfoYaml(std::filesystem::path(outdir) / "nav_info.yaml");
+    // Results to file
+    writeToFile(outpath / "nav.csv");
+    writeHeightMeasurements(outpath /"height.csv");
+    writeInfoYaml(outpath / "info.yaml");
+    gnss_handle_.writeToFile(outpath / "gnss.csv");
 }

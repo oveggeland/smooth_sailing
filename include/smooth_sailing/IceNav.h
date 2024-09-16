@@ -5,6 +5,8 @@
 #include "smooth_sailing/imu.h"
 #include "smooth_sailing/lidar.h"
 #include "smooth_sailing/altitudeFactor.h"
+#include "smooth_sailing/vectorNormFactor.h"
+#include "smooth_sailing/angleNormFactor.h"
 
 #include "gtsam/navigation/GPSFactor.h"
 #include "gtsam/navigation/AttitudeFactor.h"
@@ -44,6 +46,7 @@ class IceNav{
 
         void writeToFile(const std::string& out_file);
         void writeInfoYaml(const std::string& out_file);
+        void writeHeightMeasurements(const std::string& out_file);
 
         // Control parameters
         bool is_init_ = false;
@@ -63,6 +66,7 @@ class IceNav{
         int virtual_height_interval_;
         double virtual_height_sigma_;
         double t_last_height_factor_ = 0.0;
+        bool useLeveredHeight_;
 
         int optimize_interval_;
 };
