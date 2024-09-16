@@ -68,6 +68,10 @@ class IceNav{
         double t_last_height_factor_ = 0.0;
         bool useLeveredHeight_;
 
+        bool altitude_estimate_gm_;
+        double altitude_gm_tau_;
+        double altitude_gm_sigma_; 
+
         int optimize_interval_;
 };
 

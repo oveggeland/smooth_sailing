@@ -12,6 +12,10 @@ IceNav::IceNav(const YAML::Node& config): config_(config){
     optimize_interval_ = config_["optimize_interval"].as<int>();
 
     useLeveredHeight_ = config_["virtual_height_levered"].as<bool>();
+
+    altitude_estimate_gm_ = config_["altitude_estimate_gm"].as<bool>();
+    altitude_gm_tau_ = config_["altitude_gm_tau"].as<double>();
+    altitude_gm_sigma_ = config_["altitude_gm_sigma"].as<double>();
 }
 
 // Entry point for new IMU measurements
@@ -92,19 +96,6 @@ void IceNav::predictAndUpdate(){
     }
 }
 
-void IceNav::addVirtualHeightConstraint(){
-    if (useLeveredHeight_){
-        cout << "Add levered altitude constraint at " << correction_count_ << endl;
-        auto altitude_factor = LeveredAltitudeFactor(X(correction_count_), L(0), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
-        graph_.add(altitude_factor);
-    }
-    else{
-        cout << "Add altitude constraint at " << correction_count_ << endl;
-        auto altitude_factor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
-        graph_.add(altitude_factor);
-    }
-}
-
 void IceNav::newCorrection(double ts){
     correction_stamps_.push_back(ts);
 
@@ -113,9 +104,26 @@ void IceNav::newCorrection(double ts){
     graph_.add(imu_factor);
     cout << "Add IMU factor between " << correction_count_ - 1 << " and " << correction_count_ << endl;
 
-    // Consider height constraint
-    if (ts - t_last_height_factor_ > virtual_height_interval_){
-        addVirtualHeightConstraint();
+    // Consider height constraints
+    if (altitude_estimate_gm_){
+        // Gauss markov constraint
+        double dt = ts - correction_stamps_[correction_count_-1];
+        auto altitudeConstraint = ConstrainedAltitudeFactor(X(correction_count_-1), X(correction_count_), dt,
+            altitude_gm_tau_, altitude_gm_sigma_);
+        graph_.add(altitudeConstraint);
+    }
+    else if (useLeveredHeight_){
+        // Levered height
+        cout << "Add levered height factor" << endl;
+        auto altitudeFactor = LeveredAltitudeFactor(X(correction_count_), L(0), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        graph_.add(altitudeFactor);
+        t_last_height_factor_ = ts;
+    }
+    else if (ts - t_last_height_factor_ > virtual_height_interval_){
+        // Vanilla measurements
+        cout << "Add vanilla height factor" << endl;
+        auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        graph_.add(altitudeFactor);
         t_last_height_factor_ = ts;
     }
 
@@ -151,12 +159,15 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
         double max_norm = 50;
         auto lever_norm_factor = Point3NormConstraintFactor(L(0), max_norm, noiseModel::Isotropic::Sigma(1, 0.1));
         graph_.add(lever_norm_factor);
+        prior_count_ ++;
 
         // Prior on lever arm angle w.r.t gravity (Must be less than 90 degrees)
         double max_angle = 90;
         auto lever_angle_norm_factor = AngularConstraintFactor(L(0), imu_handle_.getNz(), max_angle * DEG2RAD, noiseModel::Isotropic::Sigma(1, 0.01));
         graph_.add(lever_angle_norm_factor);
+        prior_count_ ++;
     }
+
     // Prior on bias
     auto bias_noise_model = noiseModel::Diagonal::Sigmas(Vector6::Map(config_["initial_imu_bias_sigma"].as<std::vector<double>>().data(), 6)); 
     graph_.addPrior(B(0), imuBias::ConstantBias(), bias_noise_model);
@@ -188,7 +199,7 @@ void IceNav::writeToFile(const std::string& out_file){
 
     f << "ts,x,y,z,vx,vy,vz,roll,pitch,yaw,bax,bay,baz,bgx,bgy,bgz" << endl << fixed; 
 
-    for (int i = 0; i < correction_count_; i++){ // TODO
+    for (int i = 0; i < correction_count_; i++){
         Pose3 pose = values_.at<Pose3>(X(i));
         Vector3 x = pose.translation();
         Vector3 ypr = pose.rotation().ypr();
