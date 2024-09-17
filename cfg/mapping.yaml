@@ -1,0 +1,10 @@
+### Pointcloud stuff
+cloud_max_interval: 100 # Max 100 seconds per pointcloud
+cloud_relative_timestamps: True
+
+lidar_topic: /livox_lidar_node/pointcloud2
+lidar_return_count: 2 # Dual return mode
+lidar_sample_rate: 100000 # Samples per second
+lidar_frame_rate: 10
+
+min_x_distance: 10
