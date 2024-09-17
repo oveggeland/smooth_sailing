@@ -11,6 +11,10 @@
 #include "gtsam/navigation/GPSFactor.h"
 #include "gtsam/navigation/AttitudeFactor.h"
 #include "gtsam/nonlinear/LevenbergMarquardtOptimizer.h"
+#include "gtsam/slam/BetweenFactor.h"
+
+#include "gtsam_unstable/slam/GaussMarkov1stOrderFactor.h"
+
 
 #include "yaml-cpp/yaml.h"
 
@@ -48,21 +52,22 @@ class IceNav{
         void writeInfoYaml(const std::string& out_file);
         void writeHeightMeasurements(const std::string& out_file);
 
-        // Control parameters
+        ///// General control /////
         bool is_init_ = false;
-        Vector3 nZ_;
 
         int correction_count_ = 0; // TODO: Remove this?
         vector<double> correction_stamps_;
 
-        // Handle for different sensors
+        int prior_count_ = 0;
+        int optimize_interval_;
+
+        ///// Sensors /////
         IMUHandle imu_handle_;
         GNSSHandle gnss_handle_;
         LidarHandle lidar_handle_;
 
-        int prior_count_ = 0;
 
-        // Virtual height
+        ///// Altitude constraints /////
         int virtual_height_interval_;
         double virtual_height_sigma_;
         double t_last_height_factor_ = 0.0;
@@ -72,7 +77,18 @@ class IceNav{
         double altitude_gm_tau_;
         double altitude_gm_sigma_; 
 
-        int optimize_interval_;
+
+        ///// GNSS /////
+        int gnss_seq_ = 0;
+        int gnss_sample_interval_;
+        double gnss_ts_prev_;
+
+        // Bias stuff
+        bool gnss_estimate_bias_;
+        bool gnss_bias_gm_;
+        double gnss_bias_sigma_;
+        double gnss_bias_tau_;
+        gtsam::Key gnssLastBiasKey_;
 };
 
 #endif

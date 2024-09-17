@@ -37,7 +37,7 @@ class GNSSHandle{
 
         Point2 getMeasurement(p_gnss_msg);
 
-        GNSSFactor getCorrectionFactor(Point2 xy, int correction_count);
+        boost::shared_ptr<gtsam::NonlinearFactor> getCorrectionFactor(Point2 xy, int correction_count, bool biased);
         void getOffset(double &x0, double &y0);
 
         void writeToFile(const std::string& out_file);

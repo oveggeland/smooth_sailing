@@ -16,6 +16,13 @@ IceNav::IceNav(const YAML::Node& config): config_(config){
     altitude_estimate_gm_ = config_["altitude_estimate_gm"].as<bool>();
     altitude_gm_tau_ = config_["altitude_gm_tau"].as<double>();
     altitude_gm_sigma_ = config_["altitude_gm_sigma"].as<double>();
+
+    gnss_sample_interval_ = config_["gnss_sample_interval"].as<int>();
+
+    gnss_estimate_bias_ = config_["gnss_estimate_bias"].as<bool>();
+    gnss_bias_gm_ = config_["gnss_bias_gm"].as<bool>();
+    gnss_bias_sigma_ = config_["gnss_bias_sigma"].as<double>();
+    gnss_bias_tau_ = config_["gnss_bias_tau"].as<double>();
 }
 
 // Entry point for new IMU measurements
@@ -35,30 +42,48 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
     double ts = msg->header.stamp.toSec();
     Point2 xy = gnss_handle_.getMeasurement(msg);
 
-    if (is_init_){
+    if (is_init_ && (gnss_seq_ % gnss_sample_interval_ == 0)){
         cout << "Add GNSS factor at " << correction_count_ << endl;
-        auto gnss_factor = gnss_handle_.getCorrectionFactor(xy, correction_count_);
+        auto gnss_factor = gnss_handle_.getCorrectionFactor(xy, correction_count_, gnss_estimate_bias_);
         graph_.add(gnss_factor);
+
+        // Here, we can add a gauss-markov or 
+        if (gnss_estimate_bias_){
+            double dt = ts - gnss_ts_prev_;
+            cout << "Add bias node between " << gnssLastBiasKey_ << "and " << G(correction_count_);
+            if (gnss_bias_gm_){
+                auto gnss_bias_factor = GaussMarkov1stOrderFactor<Point2>(gnssLastBiasKey_, G(correction_count_), dt, Vector2(gnss_bias_tau_, gnss_bias_tau_), noiseModel::Isotropic::Sigma(2, gnss_bias_sigma_));
+                graph_.add(gnss_bias_factor);
+            }
+            else{
+                // Defaults to wiener process
+                auto gnss_bias_factor = BetweenFactor(gnssLastBiasKey_, G(correction_count_), Point2(), noiseModel::Isotropic::Sigma(2, gnss_bias_sigma_*(dt)));
+                graph_.add(gnss_bias_factor);
+            }
+
+            gnssLastBiasKey_ = G(correction_count_);
+        }
 
         newCorrection(ts);
     }
-    else if (imu_handle_.isInit()){
+    else if (!is_init_ && imu_handle_.isInit()){
         // estimate initial pose (height is zero, rotation from nZ_, xy is measured here.)
         Vector3 t = (Vector(3) << xy, 0).finished();
         Rot3 R = imu_handle_.getRotPrior();
 
         initialize(ts, Pose3(R, t));
 
-        // After initialization, we can add GNSS factor
-        cout << "Add GNSS factor at " << correction_count_ << endl;
-        auto gnss_factor = gnss_handle_.getCorrectionFactor(xy, correction_count_);
+        // After initialization, we can add GNSS factor at node 0
+        auto gnss_factor = gnss_handle_.getCorrectionFactor(xy, 0, gnss_estimate_bias_); // This could potentially return a bias gnss factor
         graph_.add(gnss_factor);
 
+        // Initialize control counters
         correction_count_ = 1;
+        gnss_seq_ = 0;
     }
-    else{
-        cout << "Waiting for IMU to initialize rotation" << endl;
-    }
+
+    gnss_ts_prev_ = ts;
+    gnss_seq_++;
 }
 
 void IceNav::newLidarMsg(sensor_msgs::PointCloud2::ConstPtr msg){
@@ -88,6 +113,10 @@ void IceNav::predictAndUpdate(){
     values_.insert(X(correction_count_), state_pred.pose());
     values_.insert(V(correction_count_), state_pred.velocity());
     values_.insert(B(correction_count_), bias0);
+    
+    if (gnss_estimate_bias_){
+        values_.insert(G(correction_count_), values_.at<Point2>(G(correction_count_-1)));
+    }
 
     // Perform optimization and update values
     if (correction_count_ % optimize_interval_ == 0){
@@ -147,6 +176,15 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
     values_.insert(V(0), Point3());
     values_.insert(B(0), imuBias::ConstantBias());
 
+    if (gnss_estimate_bias_){
+        values_.insert(G(0), Point2());
+
+        graph_.addPrior(G(0), Point2(), noiseModel::Isotropic::Sigma(2, 1e-9));
+        gnssLastBiasKey_ = G(0);
+        prior_count_++;
+    }
+
+
     if (useLeveredHeight_){
         values_.insert(L(0), Point3()); // No cheating here...
 
@@ -197,7 +235,8 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
 void IceNav::writeToFile(const std::string& out_file){
     ofstream f(out_file);
 
-    f << "ts,x,y,z,vx,vy,vz,roll,pitch,yaw,bax,bay,baz,bgx,bgy,bgz" << endl << fixed; 
+    f << "ts,x,y,z,vx,vy,vz,roll,pitch,yaw,bax,bay,baz,bgx,bgy,bgz,gnss_bias_north,gnss_bias_east";
+    f << endl << fixed; 
 
     for (int i = 0; i < correction_count_; i++){
         Pose3 pose = values_.at<Pose3>(X(i));
@@ -210,7 +249,17 @@ void IceNav::writeToFile(const std::string& out_file){
         f << x[0] << "," << x[1] << "," << x[2] << ",";
         f << v[0] << "," << v[1] << "," << v[2] << ",";
         f << ypr[2] << "," << ypr[1] << "," << ypr[0] << ",";
-        f << b[0] << "," << b[1] << "," << b[2] << "," << b[3] << "," << b[4] << "," << b[5] << endl;
+        f << b[0] << "," << b[1] << "," << b[2] << "," << b[3] << "," << b[4] << "," << b[5];
+
+        if (gnss_estimate_bias_){
+            Point2 gnss_bias = values_.at<Point2>(G(i));
+            f << "," << gnss_bias[0] << "," << gnss_bias[1];
+        }
+        else
+            f << ",0,0";
+        
+        f << endl;
+
     }
 }
 

@@ -13,26 +13,31 @@ imu_accel_bias_rw_sigma: 1.0e-4       # No bias drift
 imu_gyro_bias_rw_sigma: 1.0e-5        # No bias drift
 
 imu_split_integration: false
-imu_max_integration_interval: 0.35
+imu_max_integration_interval: 1.05
 
 imu_acc_scale: 0.986 # Based on stationary data collection in independence fjord
 # For left system, the value is 0.998
 
 # GNSS stuff
 gnss_sigma: 2                 # TODO: Sigma of measurement error
+gnss_sample_interval: 1       # TODO: Downsample GNSS (Cause its noisy)
+
+gnss_estimate_bias: false
+gnss_bias_gm: true # Use gauss-markov, if not the bias model defaults to wiener
+gnss_bias_sigma: 2 # Continous time bias noise, (roughly std of change over 1 sec)
+gnss_bias_tau: 25 # Time constant of bias (if gauss markov)
 
 gnss_crs_source: "EPSG:4326"
 gnss_crs_target: "EPSG:6052"
 
 # Virtual height
 virtual_height_interval: 1
-virtual_height_sigma: 0.1
-virtual_height_levered: true
+virtual_height_sigma: 1
+virtual_height_levered: false
 
-altitude_estimate_gm: false # Use gauss-markov factor to constrain altitude
+altitude_estimate_gm: true # Use gauss-markov factor to constrain altitude
 altitude_gm_tau: 3
 altitude_gm_sigma: 0.1 # Use a rough estimate of root mean square
-
 
 optimize_interval: 5 # Sub-problem optimization interval
 optimize_remove_priors: true

@@ -18,7 +18,16 @@ import signal
 DEG2RAD = (np.pi / 180)
 RAD2DEG = (1 / DEG2RAD)
 
+"""
+Interpolate values from source onto time stamps of target
+"""
+def interpolate(t_target, y_target, t_source, y_source):
+    t_min, t_max = max(t_target.min(), t_source.min()), min(t_target.max(), t_source.max())
 
+    target_idx = (t_target >= t_min) & (t_target <= t_max)
+    
+    return t_target[target_idx], y_target[target_idx], np.interp(t_target[target_idx], t_source, y_source)
+        
 def shutdown_hook():
     plt.close('all')
 
@@ -49,19 +58,17 @@ def sua(angles, deg=True):
     angles = np.where(angles > rot, angles - rot, angles)
     return angles
 
-def compare_navigation(nav_data, ship_data, lever_arm):
+def compare_navigation(nav_data, ship_data, lever_arm, m_dz):
     nav_time = nav_data["ts"].to_numpy()
-    nav_time = nav_time - nav_time.min()
     nav_heading = nav_data["yaw"].to_numpy()*RAD2DEG
     nav_height = nav_data["z"].to_numpy()
     
     ship_time = ship_data["ts"].to_numpy()
-    ship_time = ship_time - ship_time.min()
     ship_heading = ship_data["heading"].to_numpy()
     ship_predicted_position = predict_position_from_ship_data(ship_data, lever_arm=lever_arm)
     ship_height_prediction = ship_predicted_position[:, 2]
 
-    fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+    fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
     ax0, ax1, ax2, ax3 = axs.flatten()  # Flatten the 2x2 grid into a 1D array for easy access
 
     # Plot "True heading" on the first subplot
@@ -83,9 +90,19 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     ax1.legend()
 
     # Plot "Comparing height" on the third subplot
-    ax2.plot(ship_time, ship_height_prediction - ship_height_prediction.mean(), label="Ship prediction")
-    ax2.plot(nav_time, nav_height - nav_height.mean(), label="System")
-    ax2.set_ylabel("Vertical displacement [m]")
+    ship_pred_norm = ship_height_prediction - ship_height_prediction.mean()
+    nav_norm = nav_height - nav_height.mean()
+    
+    t, y_target, y_source = interpolate(ship_time, ship_pred_norm, nav_time, nav_norm)
+    
+    rmse = np.sqrt(np.mean((y_source-y_target)**2))
+    #rmse = np.sqrt(np.mean((ship_pred_norm)**2))
+    
+    ax2.plot(t, y_target, label="Ship prediction")
+    ax2.plot(t, y_source, label="System")
+    ax2.scatter(m_dz["ts"].values,- m_dz["altitude"].values + m_dz["altitude"].values.mean())
+    ax2.set_title(f"RMSE: {rmse}")
+    ax2.set_ylabel(f"Vertical displacement [m]")
     ax2.legend()
     
     # Compare roll and pitch
@@ -101,6 +118,8 @@ def compare_navigation(nav_data, ship_data, lever_arm):
     ax3.plot(ship_data["ts"].values, ship_pitch - ship_pitch.mean(), c='y',  label="Ship pitch")
     ax3.set_ylabel("Relative attitudes [deg]")
     ax3.legend()
+    
+    ax3.set_xlim(nav_time[0], nav_time[-1])
 
     # Show the plot
     plt.tight_layout()
@@ -160,9 +179,10 @@ def plot_navigation(nav_data):
     gyro_bias_ax.legend()
 
     # Relative height
-    height_ax.plot(nav_data["ts"].values, nav_data["z"].values)
+    height_ax.plot(nav_data["ts"].values, nav_data["z"].values, label="Altitude")
+    #height_ax.plot(nav_data["ts"].values, nav_data["bz"].values, label="Altitude bias")
     height_ax.set_xlabel('Time [s]')
-    height_ax.set_ylabel('Relative height [m]')
+    height_ax.set_ylabel('Vertical displacement [m]')
 
     # Adjust layout to avoid overlapping of labels
     plt.tight_layout(pad=3.0)
@@ -250,8 +270,8 @@ def heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm):
     d_east = pred_east - m_east
     d_north = pred_north - m_north
     
-    fig, axs = plt.subplots(2, 1, sharex=True, figsize=(15, 5), num="Heading vs GNSS deviation")
-    ax0, ax1 = axs.flatten()
+    fig, axs = plt.subplots(3, 1, sharex=True, figsize=(15, 5), num="Heading vs GNSS deviation")
+    ax0, ax1, ax2 = axs.flatten()
     
     # 
     ship_heading=ship_data["heading"].values
@@ -264,7 +284,12 @@ def heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm):
     ax1.plot(m_time, d_north, label="Northern deviation")
     #ax2.plot(pred_time, ship_data["heading"].values*DEG2RAD, label="Ship heading")
     ax1.legend()
-    
+
+    # Biases
+    ax2.plot(nav_data["ts"].values, nav_data["gnss_bias_north"].values, label="North")
+    ax2.plot(nav_data["ts"].values, nav_data["gnss_bias_east"].values, label="East")
+    ax2.legend()
+
 
 if __name__ == "__main__":
     rospy.init_node("navigation_evaluation_node")
@@ -282,14 +307,14 @@ if __name__ == "__main__":
     
     lever_arm = find_in_yaml(nav_config, "lever_arm")
     
-    
+    m_dz = pd.read_csv(os.path.join(ws, "navigation", "height.csv"))
     
     heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm)
     
     evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm)
     plt.savefig(os.path.join(ws, "navigation", "gnss_evaluation.png"))    
-    
-    compare_navigation(nav_data, ship_data, lever_arm)
+
+    compare_navigation(nav_data, ship_data, lever_arm, m_dz)
     plt.savefig(os.path.join(ws, "navigation", "ship_comparison.png"))    
 
     plot_navigation(nav_data)

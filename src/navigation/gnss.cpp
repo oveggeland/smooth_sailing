@@ -21,10 +21,11 @@ GNSSHandle::GNSSHandle(const YAML::Node &config){
 }
 
 
-GNSSFactor GNSSHandle::getCorrectionFactor(Point2 xy, int correction_count){
-    return GNSSFactor(
-        X(correction_count), xy, correction_noise
-    );
+boost::shared_ptr<gtsam::NonlinearFactor> GNSSHandle::getCorrectionFactor(Point2 xy, int correction_count, bool biased){
+    if (biased)
+        return boost::make_shared<BiasedGNSSFactor>(X(correction_count), G(correction_count), xy, correction_noise);
+    
+    return boost::make_shared<GNSSFactor>(X(correction_count), xy, correction_noise);
 }
 
 Point2 GNSSHandle::getMeasurement(p_gnss_msg msg){
