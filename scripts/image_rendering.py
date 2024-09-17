@@ -6,6 +6,14 @@ from cv_bridge import CvBridge, CvBridgeError
 import cv2 as cv
 import yaml
 
+from t_pointcloud import t_filter
+
+
+def readYaml(file, label):
+    with open(file, 'r') as f:
+        return yaml.safe_load(f)[label]
+
+
 class CameraHandle:
     def __init__(self, int_yaml) -> None:
         self.cv_bridge = CvBridge()
@@ -68,7 +76,11 @@ class CameraHandle:
 
 
 class ImageRenderer:
-    def __init__(self, camera_object, geometry) -> None:
+    def __init__(self, camera_object, clouds, info) -> None:
+        # Store cloud data
+        self.clouds = clouds
+        self.cloud_interval = readYaml(info, "cloud_max_interval")
+        
         self.cam = camera_object
         self.cam_params = o3d.camera.PinholeCameraParameters()
 
@@ -77,19 +89,38 @@ class ImageRenderer:
 
         self.vis = o3d.visualization.Visualizer()
         self.vis.create_window(visible = False, width=self.w, height=self.h)
-        self.vis.add_geometry(geometry)
 
         self.render_opt = self.vis.get_render_option()
-        self.render_opt.background_color = (0, 0, 0)
-        self.render_opt.point_size = 3
+        self.render_opt.background_color = readYaml(info, "reconstruction_background_color")
+        self.render_opt.point_size = readYaml(info, "reconstruction_point_size")
 
         self.view_ctr = self.vis.get_view_control()
 
-    def render_image(self, T_cam):
+
+    def update_pointcloud(self, t_query, dt):
+        pcd_window = o3d.geometry.PointCloud()
+
+        # Self.clouds contain a key (t0) and a pcd
+        for t0, pcd in self.clouds.items():
+            # Is cloud in future?
+            if t_query - dt > t0 + self.cloud_interval:
+                continue
+            # Is cloud in past?
+            if t_query + dt < t0 :
+                continue
+
+            pcd = t_filter(pcd, channel="timestamps", min=t_query-dt, max=t_query+dt)
+            pcd_window += pcd.to_legacy()
+                
+        self.vis.clear_geometries()
+        self.vis.add_geometry(pcd_window)
+        
+
+    def render_image(self, T_cam):        
         self.cam_params.extrinsic = T_cam
         self.view_ctr.convert_from_pinhole_camera_parameters(self.cam_params)
-
+        
         self.vis.poll_events()
         self.vis.update_renderer()
-
+        
         return self.cam.crop_to_roi(np.asarray(self.vis.capture_screen_float_buffer()))*255

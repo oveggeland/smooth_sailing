@@ -1,16 +1,15 @@
-ws: "/home/oskar/smooth_sailing/data/ws_right1/"
-max_time_interval: 300
-
-minimal: False # TODO: Use minimal flag to turn off ship verifiation, image extraction etc. 
+ws: "/home/oskar/smooth_sailing/data/long2/"
+max_time_interval: 900
 
 run_workspace_preparation: false
-run_navigation: true
-run_navigation_evaluation: true
-run_mapping: false
+run_navigation: false
+run_navigation_evaluation: false
+run_mapping: true
 run_post_processing: false
-run_image_reconstruction: false
+run_image_reconstruction: true
 
-ext_file: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/ext_right.yaml"
-int_file: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/int_right.yaml"
+ext_file: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/calib/ext_right.yaml"
+int_file: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/calib/int_right.yaml"
 
 nav_config: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/nav.yaml"
+map_config: "/home/oskar/smooth_sailing/src/smooth_sailing/cfg/mapping.yaml"

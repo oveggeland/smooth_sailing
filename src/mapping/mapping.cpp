@@ -249,8 +249,6 @@ public:
                     t0_map_ = t0_frame;
                 }
                 else if (t0_frame - t0_map_ > cloud_interval_){
-                    cout << fixed << setprecision(2);
-                    cout << t0_frame << "," << t0_map_ << ", " << cloud_interval_ << "," << t0_frame - t0_map_ << endl;
                     cloudTimeout(); // Save cloud and reset
                     t0_map_ = 0.0;
                 }

@@ -14,7 +14,7 @@ import os
 import signal
 import rosbag
 
-from t_pointcloud import t_color_by_channel, t_color_enhance_by_channel
+from t_pointcloud import t_color_by_channel, t_color_enhance_by_channel, t_filter, t_get_channel
 
 import pandas as pd
 import open3d as o3d
@@ -33,6 +33,12 @@ def interpolate_pose3(pose1, pose2, t):
     rot_int = pose1.rotation().slerp(t, pose2.rotation())
 
     return gtsam.Pose3(rot_int, t_int)
+    
+
+def readYaml(file, label):
+    with open(file, 'r') as f:
+        return yaml.safe_load(f)[label]
+    
 
 def readExt(ext_yaml, label):
         with open(ext_yaml, 'r') as ext_yaml:
@@ -72,21 +78,41 @@ class poseExtractor:
 
 
 
-IMAGE_INTERVAL = 5  #TODO, align this with optical images (Also move optical images here, no need for them before this happens)
+def overlay_image(img_base, img_src):
+    # Paint img_base with img_src
+    return np.where(img_src, img_src, img_base)
+
+
 if __name__ == "__main__":
     rospy.init_node("image_reconstruction_node")
     ws = rospy.get_param("/ws")
     
     # Make output path
-    output_path = os.path.join(ws, "images", "reconstructed")
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
+    reconstruction_path = os.path.join(ws, "images", "reconstructed")
+    if not os.path.exists(reconstruction_path):
+        os.makedirs(reconstruction_path)
         
+    # Make output path
+    overlay_path = os.path.join(ws, "images", "overlay")
+    if not os.path.exists(overlay_path):
+        os.makedirs(overlay_path)
         
-    # Read pointcloud
-    pcd = o3d.t.io.read_point_cloud(os.path.join(ws, "processed.ply"))    
-    t_color_by_channel(pcd, "intensities", cv.COLORMAP_HOT, 1, 99)
-    t_color_enhance_by_channel(pcd, "intensities", p_upper=95) # Everything with less than 30p intensity should have reduced visibility
+    # Read clouds
+    clouds = {}
+    cloud_path = os.path.join(ws, "raw_clouds")
+    for cloud_file in sorted(os.listdir(cloud_path)):
+        pcd = o3d.t.io.read_point_cloud(os.path.join(cloud_path, cloud_file))
+        t_color_by_channel(pcd, "intensities", cv.COLORMAP_HOT, 1, 99)
+        t_color_enhance_by_channel(pcd, "intensities", p_upper=95) # Everything with less than 30p intensity should have reduced visibility
+
+        ts = t_get_channel(pcd, "timestamps")
+        clouds[ts.min()] = pcd
+        
+    # Info file
+    info = rospy.get_param("map_config")
+    
+    dt = readYaml(info, "reconstruction_dt")
+    interval = readYaml(info, "reconstruction_interval")
     
     # Read bag
     bag = rosbag.Bag(os.path.join(ws, "cooked.bag"))
@@ -100,8 +126,7 @@ if __name__ == "__main__":
     
     # Camera object
     cam = CameraHandle(rospy.get_param("int_file"))
-    image_renderer = ImageRenderer(cam, pcd.to_legacy())
-
+    image_renderer = ImageRenderer(cam, clouds, info)
     # Iterate over bag
     seq = 0
     for (_, msg, _) in bag.read_messages(topics=["/blackfly_node/image"], end_time=rospy.Time(bag.get_start_time() + rospy.get_param("max_time_interval"))):
@@ -111,12 +136,20 @@ if __name__ == "__main__":
         if Twb is not None and (seq % 5 == 0):
             Twc = Twb.compose(Tbc)
             
-            img = image_renderer.render_image(T_cam=Twc.inverse().matrix())
+            image_renderer.update_pointcloud(ts, dt) 
+            img_reconstructed = image_renderer.render_image(Twc.inverse().matrix())
             
             # Save to file
-            cv.imwrite(os.path.join(output_path, f"frame_{seq:04d}.png"), img)
+            cv.imwrite(os.path.join(reconstruction_path, f"frame_{seq:04d}.png"), img_reconstructed)
             
-            cv.imshow("TEST", img)
+            if readYaml(info, "reconstruction_do_overlay"):
+                img_raw = cam.get_undistorted_image(msg, True)
+                
+                img_overlayed = overlay_image(img_raw, img_reconstructed)
+                cv.imwrite(os.path.join(overlay_path, f"frame_{seq:04d}.png"), img_overlayed)
+            
+            
+            cv.imshow("TEST", img_reconstructed)
             k = cv.waitKey(1)
             if k == ord('q'):
                 break
