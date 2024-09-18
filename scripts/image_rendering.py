@@ -95,6 +95,8 @@ class ImageRenderer:
         self.render_opt.point_size = readYaml(info, "reconstruction_point_size")
 
         self.view_ctr = self.vis.get_view_control()
+        self.view_ctr.set_constant_z_near(0.1) # Solves issue with points being clipped in near field of view
+        
 
 
     def update_pointcloud(self, t_query, dt):
