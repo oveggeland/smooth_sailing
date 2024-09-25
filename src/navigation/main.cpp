@@ -21,6 +21,12 @@ int main(int argc, char **argv)
         exit(1);
     }
 
+    string exp;
+    if (!nh.getParam("/exp", exp)){
+        cout << "Error: No experiment provided" << endl;
+        exit(1);
+    }
+
     // Load config
     std::string config_file;
     if (nh.getParam("nav_config", config_file)) {
@@ -29,6 +35,9 @@ int main(int argc, char **argv)
         ROS_WARN("Failed to get parameter 'config_file'");
         exit(1);
     }
+
+    std::string nav_path = std::filesystem::path(workspace) / "exp" / exp / "navigation";
+    std::filesystem::create_directories(nav_path);
 
     const YAML::Node config = YAML::LoadFile(config_file);
 
@@ -79,10 +88,6 @@ int main(int argc, char **argv)
 
     // Close up shop
     bag.close();
-    // Create a navigation folder to save data in
-
-    std::string nav_path = std::filesystem::path(workspace) / "navigation";
-    std::filesystem::create_directory(nav_path);
     ice_nav.finish(nav_path);
 
     return 0;

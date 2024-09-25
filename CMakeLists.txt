@@ -37,7 +37,7 @@ add_executable(navigation ${navigation_src})
 add_executable(mapping src/mapping/mapping.cpp)
 add_executable(image_reconstruction src/mapping/image_reconstruction.cpp)
 
-target_link_libraries(navigation gtsam proj yaml-cpp ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Open3D_LIBRARIES})
+target_link_libraries(navigation gtsam proj yaml-cpp ${catkin_LIBRARIES})
 target_link_libraries(mapping gtsam yaml-cpp ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Open3D_LIBRARIES})
 target_link_libraries(image_reconstruction gtsam yaml-cpp ${catkin_LIBRARIES} ${Open3D_LIBRARIES} ${OpenCV_LIBS})
 

@@ -4,7 +4,6 @@
 IceNav::IceNav(const YAML::Node& config): config_(config){
     imu_handle_ = IMUHandle(config_);
     gnss_handle_ = GNSSHandle(config_);
-    lidar_handle_ = LidarHandle(config_);
 
     virtual_height_interval_ = config_["virtual_height_interval"].as<double>();
     virtual_height_sigma_ = config_["virtual_height_sigma"].as<double>();
@@ -86,20 +85,6 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
     gnss_seq_++;
 }
 
-void IceNav::newLidarMsg(sensor_msgs::PointCloud2::ConstPtr msg){
-    return; // Disable this for now
-    if (!is_init_)
-        return;
-
-    if (!lidar_handle_.isInit()){
-        lidar_handle_.init(msg, correction_count_);
-        newCorrection(msg->header.stamp.toSec());
-    }
-    else if (lidar_handle_.newFrame(msg)){
-        auto lidarFactor = lidar_handle_.getOdometryFactor(correction_count_);
-        // graph_.add(lidarFactor);
-    }
-}
 
 
 void IceNav::predictAndUpdate(){
