@@ -146,8 +146,8 @@ std::map<double, Pose3> buildPoseMap(const std::string& filename, Pose3 T){
 class mapBuilder{
 public:
     mapBuilder(){}
-    mapBuilder(const fs::path& ws, const Pose3& T, const YAML::Node& config): ws_(ws), ext_(T), config_(config){
-        pose_map_ = buildPoseMap(ws_ / "navigation/nav.csv", ext_);
+    mapBuilder(const fs::path& ws, const std::string exp, const Pose3& T, const YAML::Node& config): ws_(ws), ext_(T), config_(config){
+        pose_map_ = buildPoseMap(ws_ / "exp" / exp / "navigation/nav.csv", ext_);
 
         cloud_interval_ = config_["cloud_max_interval"].as<double>();
         use_relative_stamps_ = config_["cloud_relative_timestamps"].as<bool>();
@@ -159,8 +159,8 @@ public:
         frame_interval_ = (1 / frame_rate_);
         sample_interval_ = (1 / sample_rate_);
 
-        cloud_path_ = ws_ / "raw_clouds"; 
-        fs::create_directory(cloud_path_);
+        cloud_path_ = ws_ / "exp" / exp / "raw_clouds"; 
+        fs::create_directories(cloud_path_);
     }
 
 
@@ -301,9 +301,9 @@ int main(int argc, char** argv){
     ros::NodeHandle nh("~");
     
     // Find workspace
-    std::string workspace;
-    if (!nh.getParam("/ws", workspace)){
-        cout << "Error: No workspace provided" << endl;
+    std::string workspace, exp;
+    if (!nh.getParam("/ws", workspace) || !nh.getParam("/exp", exp)){
+        cout << "Error: Workspace or experiment namespace not provided" << endl;
         exit(1);
     }
 
@@ -316,7 +316,7 @@ int main(int argc, char** argv){
     nh.getParam("/map_config", config);
 
     // Build map object
-    mapBuilder mb(workspace, readTbl(ext_file), YAML::LoadFile(config));
+    mapBuilder mb(workspace, exp, readTbl(ext_file), YAML::LoadFile(config));
     mb.buildMaps();
 
     //buildPointCloud(lidarPoseMap, fs::path(workspace) / "cooked.bag", fs::path(workspace) / "raw.ply", max_interval);

@@ -14,6 +14,7 @@ import rospy
 import yaml
 import os
 import signal
+from scipy.interpolate import interp1d
 
 DEG2RAD = (np.pi / 180)
 RAD2DEG = (1 / DEG2RAD)
@@ -99,8 +100,8 @@ def compare_navigation(nav_data, ship_data, lever_arm, m_dz):
     #rmse = np.sqrt(np.mean((ship_pred_norm)**2))
     
     ax2.plot(t, y_target, label="Ship prediction")
-    ax2.plot(t, y_source, label="System")
-    ax2.scatter(m_dz["ts"].values,- m_dz["altitude"].values + m_dz["altitude"].values.mean())
+    ax2.plot(t, y_source, label="System estimate")
+    ax2.scatter(m_dz["ts"].values,- m_dz["altitude"].values + m_dz["altitude"].values.mean(), c='r', marker='x', label="Virtual measurement")
     ax2.set_title(f"RMSE: {rmse}")
     ax2.set_ylabel(f"Vertical displacement [m]")
     ax2.legend()
@@ -291,34 +292,62 @@ def heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm):
     ax2.legend()
 
 
+
+def align_data(ship_data, nav_data):
+    t_ship = ship_data["ts"].values
+    t_nav = nav_data["ts"].values
+    
+    t0, t1 = max(t_ship.min(), t_nav.min()), min(t_ship.max(), t_nav.max())
+    valid_ship_idx = (t_ship > t0) & (t_ship < t1)
+    valid_nav_idx = (t_nav > t0) & (t_nav < t1)
+    
+    ship_data_aligned = ship_data[valid_ship_idx]
+
+    interp = interp1d(t_nav, nav_data.values, axis=0)
+    nav_data_aligned = pd.DataFrame(interp(t_ship[valid_ship_idx]), columns=nav_data.columns)
+    
+    #nav_data_aligned = np.interp(t_ship[valid_ship_idx], np.ones_like(nav_data.values[valid_nav_idx])*t_nav[valid_nav_idx].reshape((-1, 1)), nav_data.values[valid_nav_idx])
+    
+    return ship_data_aligned, nav_data_aligned
+    
+    
 if __name__ == "__main__":
     rospy.init_node("navigation_evaluation_node")
 
     nav_config = rospy.get_param("nav_config")
     ws = rospy.get_param("/ws")
+    exp = rospy.get_param("/exp")
+    nav_path = os.path.join(ws, "exp", exp, "navigation")
     
     # Extract ship data
-    ship_data = pd.read_csv(os.path.join(ws, "navigation", "ship.csv"))
+    ship_data = pd.read_csv(os.path.join(ws, "ship.csv"))
     
     # Extract navigation estimates
-    nav_data = pd.read_csv(os.path.join(ws, "navigation", "nav.csv"))
+    nav_data = pd.read_csv(os.path.join(nav_path, "nav.csv"))
     
-    gnss_data = pd.read_csv(os.path.join(ws, "navigation", "gnss.csv"))
+    # Align ship and nav data (by interpolation)
+    ship_data_aligned, nav_data_aligned = align_data(ship_data, nav_data)
+    
+    ship_data_aligned.to_csv(os.path.join(nav_path, "ship_aligned.csv"), index=False)
+    nav_data_aligned.to_csv(os.path.join(nav_path, "nav_aligned.csv"), index=False)
+
+
+    gnss_data = pd.read_csv(os.path.join(nav_path, "gnss.csv"))
     
     lever_arm = find_in_yaml(nav_config, "lever_arm")
     
-    m_dz = pd.read_csv(os.path.join(ws, "navigation", "height.csv"))
+    m_dz = pd.read_csv(os.path.join(nav_path, "height.csv"))
     
     heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm)
     
     evaluate_gnss(ship_data, gnss_data, nav_data, lever_arm)
-    plt.savefig(os.path.join(ws, "navigation", "gnss_evaluation.png"))    
+    plt.savefig(os.path.join(nav_path, "gnss_evaluation.png"))    
 
     compare_navigation(nav_data, ship_data, lever_arm, m_dz)
-    plt.savefig(os.path.join(ws, "navigation", "ship_comparison.png"))    
+    plt.savefig(os.path.join(nav_path, "ship_comparison.png"))    
 
     plot_navigation(nav_data)
-    plt.savefig(os.path.join(ws, "navigation", "trajectory.png"))
+    plt.savefig(os.path.join(nav_path, "trajectory.png"))
     
     
     

@@ -165,7 +165,8 @@ if __name__ == "__main__":
         if wTb is None:
             continue
         
-        wTl = wTb.compose(bTl)
+        wTl = wTb.compose(bTl).matrix()
+        wTl[2, 3] = z0
 
-        fg.new_mesh(wTl.matrix(), ts)
+        fg.new_mesh(wTl, ts)
         

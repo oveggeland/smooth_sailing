@@ -84,6 +84,15 @@ def t_color_by_channel(pcd, channel, colormap=cv.COLORMAP_VIRIDIS, p_lower=2, p_
     pcd.point['colors'] = o3d.core.Tensor(color_map[:, :3].astype(np.float32) / 255.0, dtype=o3d.core.Dtype.Float32)
     
     # Use the normalized channel values to set the pointcloud colors
+
+def t_color_relative_topo(pcd, lb = -1, ub = 3):
+    vals = t_get_channel(pcd, "topo")
+    vals = vals - vals.mean()
+    vals = np.clip(vals, lb, ub)
+    vals = (vals - lb) / (ub - lb)
+    colors = np.stack((vals, vals, vals), axis=1).astype(np.float32)
+    
+    pcd.point['colors'] = o3d.core.Tensor(colors, dtype=o3d.core.Dtype.Float32)
     
 
 def t_color_enhance_by_channel(pcd, channel, p_lower=0, p_upper=100):
@@ -102,7 +111,7 @@ def t_color_enhance_by_channel(pcd, channel, p_lower=0, p_upper=100):
 
 def t_get_channel(pcd, channel):
     if channel == "topo":
-        return pcd.point.positions.numpy()[:, 2]
+        return -pcd.point.positions.numpy()[:, 2]
     elif channel == "color_norm":
         return np.mean(pcd.point.colors.numpy().squeeze(), axis=1)
     return pcd.point[channel].numpy()

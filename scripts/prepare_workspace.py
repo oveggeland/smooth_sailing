@@ -74,10 +74,7 @@ def extract_ship_data(ws):
     df = pd.DataFrame(ship_data, columns=["ts", "x", "y", "z", "roll", "pitch", "heading", "course", "speed"])
     
     # Check if the output folder exists, create if it doesn't
-    output_path = os.path.join(ws, "navigation")
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    df.to_csv(os.path.join(output_path, "ship.csv"))
+    df.to_csv(os.path.join(ws, "ship.csv"), index=False)
 
 
 if __name__ == "__main__":
@@ -87,9 +84,6 @@ if __name__ == "__main__":
     
     print("Cooking data bag...")
     cookbook(ws)
-    
-    print("Extracting images...")
-    extract_images(ws, interval=5)
     
     print("Extracting ship data...")
     extract_ship_data(ws)

@@ -36,13 +36,16 @@ add_executable(navigation ${navigation_src})
 #file(GLOB mapping_src "src/mapping/*.cpp")
 add_executable(mapping src/mapping/mapping.cpp)
 add_executable(image_reconstruction src/mapping/image_reconstruction.cpp)
+add_executable(estimate_alignment_matrix src/alignment_matrix.cpp)
 
 target_link_libraries(navigation gtsam proj yaml-cpp ${catkin_LIBRARIES})
 target_link_libraries(mapping gtsam yaml-cpp ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Open3D_LIBRARIES})
 target_link_libraries(image_reconstruction gtsam yaml-cpp ${catkin_LIBRARIES} ${Open3D_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(estimate_alignment_matrix gtsam yaml-cpp ${catkin_LIBRARIES})
 
 # Mark executable scripts (Python etc.) for installation
 install(PROGRAMS
   scripts/navigation_evaluation.py
+  scripts/generate_fov_masks.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}/scripts
 )

@@ -26,6 +26,9 @@ if __name__ == "__main__":
     if rospy.get_param("run_ship_data_extraction", False):
         run_node('ship_data_extraction.py')
         
+    if rospy.get_param("run_alignment_estimator", False):
+        run_node('estimate_alignment_matrix')
+        
     if rospy.get_param("run_mapping", False):
         run_node('mapping')
         

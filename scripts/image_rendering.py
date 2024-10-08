@@ -126,3 +126,51 @@ class ImageRenderer:
         self.vis.update_renderer()
         
         return self.cam.crop_to_roi(np.asarray(self.vis.capture_screen_float_buffer()))*255
+    
+    
+    
+
+class FovRenderer:
+    def __init__(self, camera_object, fovs, info) -> None:
+        # Store cloud data
+        self.fovs = fovs
+        
+        self.cam = camera_object
+        self.cam_params = o3d.camera.PinholeCameraParameters()
+
+        self.w, self.h = int(2*self.cam.cx + 1), int(2*self.cam.cy + 1)
+        self.cam_params.intrinsic = o3d.camera.PinholeCameraIntrinsic(self.w, self.h, self.cam.fx, self.cam.fy, self.w/2 - 0.5, self.h/2 - 0.5)
+
+        self.vis = o3d.visualization.Visualizer()
+        self.vis.create_window(visible = False, width=self.w, height=self.h)
+
+        self.render_opt = self.vis.get_render_option()
+        self.render_opt.background_color = readYaml(info, "reconstruction_background_color")
+        self.render_opt.point_size = readYaml(info, "reconstruction_point_size")
+        self.render_opt.mesh_show_back_face = True
+
+        self.view_ctr = self.vis.get_view_control()
+        self.view_ctr.set_constant_z_near(0.1) # Solves issue with points being clipped in near field of view
+        
+
+
+    def update_mesh(self, t_query, dt):
+        self.vis.clear_geometries()
+        
+        # Self.fovs contain a key (t0) and a pcd
+        for ts, mesh in self.fovs.items():
+            # Is mesh outside of interval?
+            if abs(t_query - ts) > dt:
+                continue
+            
+            self.vis.add_geometry(mesh)
+
+
+    def render_image(self, T_cam):        
+        self.cam_params.extrinsic = T_cam
+        self.view_ctr.convert_from_pinhole_camera_parameters(self.cam_params)
+        
+        self.vis.poll_events()
+        self.vis.update_renderer()
+        
+        return self.cam.crop_to_roi(np.asarray(self.vis.capture_screen_float_buffer()))*255
