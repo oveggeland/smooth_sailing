@@ -28,6 +28,9 @@ if __name__ == "__main__":
         
     if rospy.get_param("run_mapping", False):
         run_node('mapping')
+        
+    if rospy.get_param("run_fov_generator", False):
+        run_node('generate_fov_masks.py')
     
     if rospy.get_param("run_post_processing", False):
         run_node('post_processing.py')
