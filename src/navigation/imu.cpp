@@ -26,8 +26,6 @@ IMUHandle::IMUHandle(const YAML::Node &config){
     gyro_noise_sigma = config["imu_gyro_noise_sigma"].as<double>();
     accel_bias_rw_sigma = config["imu_accel_bias_rw_sigma"].as<double>();
     gyro_bias_rw_sigma = config["imu_gyro_bias_rw_sigma"].as<double>();
-
-    acc_scale_ = config["imu_acc_scale"].as<double>();
     
     split_integration_ = config["imu_split_integration"].as<bool>();
     max_integration_interval_ = config["imu_max_integration_interval"].as<double>();
@@ -52,7 +50,7 @@ bool IMUHandle::integrate(p_imu_msg msg){
     double ts = msg->header.stamp.toSec();
     double dt = ts - ts_head_;
 
-    prev_acc_ = acc_scale_* getAcc(msg);
+    prev_acc_ = getAcc(msg);
     prev_rate_ = getRate(msg);
     ts_head_ = ts;
 
@@ -99,7 +97,7 @@ NavState IMUHandle::predict(NavState prev_state, imuBias::ConstantBias prev_bias
 
 
 void IMUHandle::init(p_imu_msg msg){
-    prev_acc_ = acc_scale_* getAcc(msg);
+    prev_acc_ = getAcc(msg);
     prev_rate_ = getRate(msg);
     is_init_ = true;
 }

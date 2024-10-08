@@ -79,13 +79,6 @@ class IceNav{
         int gnss_seq_ = 0;
         int gnss_sample_interval_;
         double gnss_ts_prev_;
-
-        // Bias stuff
-        bool gnss_estimate_bias_;
-        bool gnss_bias_gm_;
-        double gnss_bias_sigma_;
-        double gnss_bias_tau_;
-        gtsam::Key gnssLastBiasKey_;
 };
 
 #endif

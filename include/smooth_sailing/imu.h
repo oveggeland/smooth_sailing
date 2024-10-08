@@ -60,8 +60,6 @@ class IMUHandle{
         double accel_bias_rw_sigma;
         double gyro_bias_rw_sigma;
 
-        double acc_scale_;
-
         bool split_integration_;
         double max_integration_interval_;
 };
