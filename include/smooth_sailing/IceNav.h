@@ -44,7 +44,7 @@ class IceNav{
         void predictAndUpdate();
 
         void newCorrection(double ts);
-        void addVirtualHeightConstraint();
+        void newAltitudeConstraint(double ts);
 
         void writeToFile(const std::string& out_file);
         void writeInfoYaml(const std::string& out_file);

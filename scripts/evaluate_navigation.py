@@ -286,12 +286,6 @@ def heaading_vs_gnss(ship_data, gnss_data, nav_data, lever_arm):
     #ax2.plot(pred_time, ship_data["heading"].values*DEG2RAD, label="Ship heading")
     ax1.legend()
 
-    # Biases
-    ax2.plot(nav_data["ts"].values, nav_data["gnss_bias_north"].values, label="North")
-    ax2.plot(nav_data["ts"].values, nav_data["gnss_bias_east"].values, label="East")
-    ax2.legend()
-
-
 
 def align_data(ship_data, nav_data):
     t_ship = ship_data["ts"].values

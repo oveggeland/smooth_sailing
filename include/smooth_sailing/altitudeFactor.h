@@ -86,25 +86,17 @@ public:
         : NoiseModelFactor2<Pose3, Point3>(noiseModel, poseKey, leverKey) {}
 
     // Evaluate function
-    virtual Vector evaluateError(const Pose3& pose, const Point3& bLbs, boost::optional<Matrix&> H1, boost::optional<Matrix&> H2) const override {
+    virtual Vector evaluateError(const Pose3& pose, const Point3& bLbs, boost::optional<Matrix&> H1, boost::optional<Matrix&> H2, boost::optional<Matrix&> H3) const override {
         
         // Predicted altitude from lever arm and rotation
         Point3 wLws = pose.transformFrom(bLbs, H1, H2);
-        Vector1 error(wLws[2]);
 
         if (H1 || H2) {
-            // cout << endl;
-            // cout << "bLbs: " << bLbs << endl;
-            // cout << "wLws: " << wLws << endl;
-
-            *H1 = H1->block(2, 0, 1, 6);
-            // cout << "H1 is: " << *H1 << endl;
-
-            *H2 = H2->block(2, 0, 1, 3);
-            // cout << "H2 is: " << *H2 << endl;
+            *H1 = H1->bottomRows(1);
+            *H2 = H2->bottomRows(1);
         }
 
-        return error;
+        return Vector1(wLws[2]);
     }
 };
 

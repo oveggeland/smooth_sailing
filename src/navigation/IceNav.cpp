@@ -84,6 +84,27 @@ void IceNav::predictAndUpdate(){
     }
 }
 
+
+// Add constraint on delta z (relative altitude)
+void IceNav::newAltitudeConstraint(double ts){
+    if (altitude_estimate_gm_){ // Gauss markov constraint
+        double dt = ts - correction_stamps_[correction_count_-1];
+        auto altitudeConstraint = ConstrainedAltitudeFactor(X(correction_count_-1), X(correction_count_), dt,
+            altitude_gm_tau_, altitude_gm_sigma_);
+        graph_.add(altitudeConstraint);
+    }
+    else if (useLeveredHeight_){ // Levered arm compensation
+        cout << "Add levered height factor" << endl;
+        auto altitudeFactor = LeveredAltitudeFactor(X(correction_count_), L(0), Z(correction_count_), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        graph_.add(altitudeFactor);
+    }
+    else{ // Vanilla constraint
+        cout << "Add vanilla height factor" << endl;
+        auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        graph_.add(altitudeFactor);
+    }
+}
+
 void IceNav::newCorrection(double ts){
     correction_stamps_.push_back(ts);
 
@@ -92,30 +113,8 @@ void IceNav::newCorrection(double ts){
     graph_.add(imu_factor);
     cout << "Add IMU factor between " << correction_count_ - 1 << " and " << correction_count_ << endl;
 
-
-
-    // Consider height constraints
-    if (altitude_estimate_gm_){
-        // Gauss markov constraint
-        double dt = ts - correction_stamps_[correction_count_-1];
-        auto altitudeConstraint = ConstrainedAltitudeFactor(X(correction_count_-1), X(correction_count_), dt,
-            altitude_gm_tau_, altitude_gm_sigma_);
-        graph_.add(altitudeConstraint);
-    }
-    else if (useLeveredHeight_){
-        // Levered height
-        cout << "Add levered height factor" << endl;
-        auto altitudeFactor = LeveredAltitudeFactor(X(correction_count_), L(0), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
-        graph_.add(altitudeFactor);
-        t_last_height_factor_ = ts;
-    }
-    else{
-        // Vanilla measurements
-        cout << "Add vanilla height factor" << endl;
-        auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
-        graph_.add(altitudeFactor);
-        t_last_height_factor_ = ts;
-    }
+    // Altitude constraint
+    newAltitudeConstraint(ts);
 
     // Propogate to get new initial values
     predictAndUpdate();
@@ -137,27 +136,6 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
     values_.insert(V(0), Point3());
     values_.insert(B(0), imuBias::ConstantBias());
 
-    // Mean altitude (z0)
-    double z0 = config_["initial_z0"].as<double>();
-    double z0_sigma = config_["initial_z0_sigma"].as<double>();
-    graph_.addPrior(Z(0), Vector1(z0), noiseModel::Isotropic::Sigma(1, z0_sigma));
-    values_.insert(Z(0), Vector1(z0));
-
-    // If we are using levered height constraints, add some more stuff
-    if (useLeveredHeight_){
-        values_.insert(L(0), Point3()); // No cheating here...
-
-        // Prior on lever arm norm
-        double max_norm = 50;
-        auto lever_norm_factor = Point3NormConstraintFactor(L(0), max_norm, noiseModel::Isotropic::Sigma(1, 0.1));
-        graph_.add(lever_norm_factor);
-
-        // Prior on lever arm angle w.r.t gravity (Must be less than 90 degrees)
-        double max_angle = 90;
-        auto lever_angle_norm_factor = AngularConstraintFactor(L(0), imu_handle_.getNz(), max_angle * DEG2RAD, noiseModel::Isotropic::Sigma(1, 0.01));
-        graph_.add(lever_angle_norm_factor);
-    }
-
     // Prior on bias
     auto bias_noise_model = noiseModel::Diagonal::Sigmas(Vector6::Map(config_["initial_imu_bias_sigma"].as<std::vector<double>>().data(), 6)); 
     graph_.addPrior(B(0), imuBias::ConstantBias(), bias_noise_model);
@@ -175,6 +153,27 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
     );
     graph_.add(attitudeFactor);
     prior_count_ ++;
+
+    // If we are using levered height constraints, add some more stuff
+    if (useLeveredHeight_){
+        values_.insert(L(0), Point3()); // No cheating here...
+
+        // Prior on lever arm norm (This is cheating!)
+        //graph_.addPrior(L(0), Vector3(0, 0, 20), noiseModel::Isotropic::Sigma(3, 1));
+        //prior_count_ ++;
+
+        // Prior on lever arm norm
+        double max_norm = 50;
+        auto lever_norm_factor = Point3NormConstraintFactor(L(0), max_norm, noiseModel::Isotropic::Sigma(1, 0.1));
+        graph_.add(lever_norm_factor);
+        prior_count_ ++;
+
+        // Prior on lever arm angle w.r.t gravity (Must be less than 90 degrees)
+        double max_angle = 90;
+        auto lever_angle_norm_factor = AngularConstraintFactor(L(0), imu_handle_.getNz(), max_angle * DEG2RAD, noiseModel::Isotropic::Sigma(1, 0.01));
+        graph_.add(lever_angle_norm_factor);
+        prior_count_ ++;
+    }
 
 
     // Reset IMU 
@@ -217,7 +216,6 @@ void IceNav::writeInfoYaml(const std::string& out_file){
     gnss_handle_.getOffset(x0, y0);
     nav_info["x0"] = x0;
     nav_info["y0"] = y0;
-    nav_info["z0"] = values_.at<Vector1>(Z(0)).x();
     nav_info["t0"] = correction_stamps_[0];
 
     // Convert the node to a YAML string

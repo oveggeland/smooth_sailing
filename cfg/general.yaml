@@ -1,9 +1,9 @@
 ws: "/home/oskar/smooth_sailing/data/long3/"
-exp: "levered_3600_nopriors"
-max_time_interval: 3600
+exp: "test"
+max_time_interval: 500
 
 run_workspace_preparation: false
-run_navigation: false
+run_navigation: true
 run_navigation_evaluation: true
 run_alignment_estimator: false
 run_mapping: false

@@ -1,15 +1,6 @@
 gravity_norm: 9.831 # Norm in m/s^2, sign and reference frame is sorted in imu.cpp
 lever_arm: [0, 10, -17]
 
-
-# Mean altitude
-initial_z0: -17
-initial_z0_sigma: 2 # If -1, no prior is added
-
-z0_gauss_markov: false # Gauss markov config for z0
-z0_tau: 30
-z0_sigma: 0.1
-
 # Uncertanties on initial values (The priors on veocity and biases will be removed before final optimization)
 initial_velocity_sigma: [2, 2, 0.05]
 initial_attitude_sigma: 0.5
@@ -33,12 +24,12 @@ gnss_crs_target: "EPSG:6052"
 
 # Virtual height
 virtual_height_interval: 1
-virtual_height_sigma: 1
-virtual_height_levered: false
+virtual_height_sigma: 0.1
+virtual_height_levered: true
 
 altitude_estimate_gm: false # Use gauss-markov factor to constrain altitude
 altitude_gm_tau: 30
 altitude_gm_sigma: 0.1 # Use a rough estimate of root mean square
 
-optimize_interval: 5 # Sub-problem optimization interval
-optimize_remove_priors: false
+optimize_interval: 20 # Sub-problem optimization interval
+optimize_remove_priors: true
