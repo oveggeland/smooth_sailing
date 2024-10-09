@@ -50,7 +50,7 @@ class IceNav{
 
         void writeToFile(const std::string& out_file);
         void writeInfoYaml(const std::string& out_file);
-        void writeHeightMeasurements(const std::string& out_file);
+        void writeAltitudeMeasurements(const std::string& out_file);
 
         ///// General control /////
         bool is_init_ = false;
@@ -68,20 +68,10 @@ class IceNav{
 
 
         ///// Altitude constraints /////
-        int virtual_height_interval_;
-        double virtual_height_sigma_;
-        double t_last_height_factor_ = 0.0;
-        bool useLeveredHeight_;
+        double virtual_altitude_sigma_;
+        bool virtual_altitude_levered_;
 
-        bool altitude_estimate_gm_;
-        double altitude_gm_tau_;
-        double altitude_gm_sigma_; 
-
-
-        ///// GNSS /////
-        int gnss_seq_ = 0;
-        int gnss_sample_interval_;
-        double gnss_ts_prev_;
+        bool lidar_measure_lever_arm_;
 };
 
 #endif

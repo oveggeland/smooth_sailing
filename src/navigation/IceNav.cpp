@@ -6,18 +6,12 @@ IceNav::IceNav(const YAML::Node& config): config_(config){
     gnss_handle_ = GNSSHandle(config_);
     lidar_handle_ = LidarHandle(config_);
 
-    virtual_height_interval_ = config_["virtual_height_interval"].as<double>();
-    virtual_height_sigma_ = config_["virtual_height_sigma"].as<double>();
-
     optimize_interval_ = config_["optimize_interval"].as<int>();
 
-    useLeveredHeight_ = config_["virtual_height_levered"].as<bool>();
+    virtual_altitude_sigma_ = config_["virtual_altitude_sigma"].as<double>();
+    virtual_altitude_levered_ = config_["virtual_altitude_levered"].as<bool>();
 
-    altitude_estimate_gm_ = config_["altitude_estimate_gm"].as<bool>();
-    altitude_gm_tau_ = config_["altitude_gm_tau"].as<double>();
-    altitude_gm_sigma_ = config_["altitude_gm_sigma"].as<double>();
-
-    gnss_sample_interval_ = config_["gnss_sample_interval"].as<int>();
+    lidar_measure_lever_arm_ = config_["lidar_measure_lever_arm"].as<bool>();
 }
 
 // Entry point for new IMU measurements
@@ -37,7 +31,7 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
     double ts = msg->header.stamp.toSec();
     Point2 xy = gnss_handle_.getMeasurement(msg);
 
-    if (is_init_ && (gnss_seq_ % gnss_sample_interval_ == 0)){
+    if (is_init_){
         cout << "Add GNSS factor at " << correction_count_ << endl;
         auto gnss_factor = gnss_handle_.getCorrectionFactor(xy, correction_count_);
         graph_.add(gnss_factor);
@@ -45,7 +39,7 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
         newCorrection(ts);
     }
     else if (!is_init_ && imu_handle_.isInit()){
-        // estimate initial pose (height is zero, rotation from nZ_, xy is measured here.)
+        // estimate initial pose (altitude is unknown, rotation from nZ_, xy is measured here.)
         Vector3 t = (Vector(3) << xy, 0).finished();
         Rot3 R = imu_handle_.getRotPrior();
 
@@ -57,14 +51,13 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
 
         // Initialize control counters
         correction_count_ = 1;
-        gnss_seq_ = 0;
     }
-
-    gnss_ts_prev_ = ts;
-    gnss_seq_++;
 }
 
 void IceNav::newLidarMsg(sensor_msgs::PointCloud2::ConstPtr msg){
+    if (!virtual_altitude_levered_ || !lidar_measure_lever_arm_)
+        return;
+
     if (!is_init_)
         return;
 
@@ -97,20 +90,14 @@ void IceNav::predictAndUpdate(){
 
 // Add constraint on delta z (relative altitude)
 void IceNav::newAltitudeConstraint(double ts){
-    if (altitude_estimate_gm_){ // Gauss markov constraint
-        double dt = ts - correction_stamps_[correction_count_-1];
-        auto altitudeConstraint = ConstrainedAltitudeFactor(X(correction_count_-1), X(correction_count_), dt,
-            altitude_gm_tau_, altitude_gm_sigma_);
-        graph_.add(altitudeConstraint);
-    }
-    else if (useLeveredHeight_){ // Levered arm compensation
-        cout << "Add levered height factor" << endl;
-        auto altitudeFactor = LeveredAltitudeFactor(X(correction_count_), L(0), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+    if (virtual_altitude_levered_){ // Levered arm compensation
+        cout << "Add levered altitude constraint" << endl;
+        auto altitudeFactor = LeveredAltitudeFactor(X(correction_count_), L(0), noiseModel::Isotropic::Sigma(1, virtual_altitude_sigma_));
         graph_.add(altitudeFactor);
     }
     else{ // Vanilla constraint
-        cout << "Add vanilla height factor" << endl;
-        auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        cout << "Add vanilla altitude constraint" << endl;
+        auto altitudeFactor = AltitudeFactor(X(correction_count_), 0, noiseModel::Isotropic::Sigma(1, virtual_altitude_sigma_));
         graph_.add(altitudeFactor);
     }
 }
@@ -164,8 +151,8 @@ void IceNav::initialize(double ts, Pose3 initial_pose){
     graph_.add(attitudeFactor);
     prior_count_ ++;
 
-    // If we are using levered height constraints, add some more stuff
-    if (useLeveredHeight_){
+    // If we are using levered altitude constraints, add some more stuff
+    if (virtual_altitude_levered_){
         values_.insert(L(0), Point3()); // No cheating here...
 
         // Prior on lever arm norm (This is cheating!)
@@ -232,7 +219,7 @@ void IceNav::writeInfoYaml(const std::string& out_file){
     YAML::Emitter emitter;
     emitter << nav_info;
 
-    if (useLeveredHeight_){
+    if (virtual_altitude_levered_){
         Point3 lever_arm = values_.at<Point3>(L(0));
         emitter << YAML::Key << "lever_arm";
         emitter << YAML::Value << YAML::Flow << YAML::BeginSeq << lever_arm(0) << lever_arm(1) << lever_arm(2) << YAML::EndSeq;
@@ -244,17 +231,17 @@ void IceNav::writeInfoYaml(const std::string& out_file){
 }
 
 
-void IceNav::writeHeightMeasurements(const std::string& out_file){
+void IceNav::writeAltitudeMeasurements(const std::string& out_file){
     ofstream f(out_file);
 
     f << "ts,altitude" << endl << fixed; 
 
-    double height = 0;
+    double m_z = 0;
     for (int i = 0; i < correction_count_; i++){ // TODO
-        if (useLeveredHeight_)
-            height = values_.at<Pose3>(X(i)).rotation().rotate(values_.at<Point3>(L(0)))[2];
+        if (virtual_altitude_levered_)
+            m_z = values_.at<Pose3>(X(i)).rotation().rotate(values_.at<Point3>(L(0)))[2];
 
-        f << correction_stamps_[i] << "," << height << endl;
+        f << correction_stamps_[i] << "," << m_z << endl;
     }
 
     f.close();
@@ -281,7 +268,7 @@ void IceNav::finish(const std::string& outdir){
 
     // Results to file
     writeToFile(outpath / "nav.csv");
-    writeHeightMeasurements(outpath /"height.csv");
+    writeAltitudeMeasurements(outpath /"height.csv");
     writeInfoYaml(outpath / "info.yaml");
     gnss_handle_.writeToFile(outpath / "gnss.csv");
 }

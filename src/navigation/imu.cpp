@@ -27,7 +27,6 @@ IMUHandle::IMUHandle(const YAML::Node &config){
     accel_bias_rw_sigma = config["imu_accel_bias_rw_sigma"].as<double>();
     gyro_bias_rw_sigma = config["imu_gyro_bias_rw_sigma"].as<double>();
     
-    split_integration_ = config["imu_split_integration"].as<bool>();
     max_integration_interval_ = config["imu_max_integration_interval"].as<double>();
 
     // Pre-integration
@@ -61,7 +60,7 @@ bool IMUHandle::integrate(p_imu_msg msg){
         preintegrated->integrateMeasurement(prev_acc_, prev_rate_, dt);
     }
 
-    if (split_integration_ && (ts - ts_tail_ > max_integration_interval_)){
+    if (ts - ts_tail_ > max_integration_interval_){
         ROS_INFO("Max integration time reached");
         // This means it is time to suit up
         return true;

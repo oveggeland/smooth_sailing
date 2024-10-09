@@ -25,11 +25,18 @@ using namespace gtsam;
 
 class LidarHandle{
 private:
-    // Add options for factor (How to calculate, noise model, etc. )
     Pose3 bTl_;
     double t_last_update_ = 0.0;
+
+    double measurement_interval_;
+    double measurement_sigma_;
+    double min_x_distance_;
+    int min_inlier_count_;
+
+    pcl::SACSegmentation<pcl::PointXYZ> seg_;
     
     pcl::PointCloud<pcl::PointXYZ>::Ptr msgToCloud(const sensor_msgs::PointCloud2::ConstPtr& msg);
+    bool segmentPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, Vector4 &plane_coeffs);
 
 public: 
     LidarHandle(){};

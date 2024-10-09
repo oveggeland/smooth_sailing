@@ -3,19 +3,16 @@
 using namespace gtsam;
 
 
-// Factor to make bLbs approach the plane fitted by LiDAR measurements
+// Factor to make bLbs approach the plane (a,b,c,d) defined in plane_model
 class LeverArmFactor : public NoiseModelFactor1<Point3> {
 private:
     Vector4 plane_;
-    double normalization_factor_;
     Matrix13 H_;
 
 public:
-  LeverArmFactor(gtsam::Key key, double a, double b, double c, double d, const SharedNoiseModel& noiseModel)
-    : NoiseModelFactor1<Point3>(noiseModel, key){
-        plane_ = (Vector(4) << a, b, c, d).finished();
-        normalization_factor_ = 1 / sqrt(a*a + b*b + c*c);
-        H_ = normalization_factor_*(Vector(3) << a, b, c).finished();
+  LeverArmFactor(gtsam::Key key, Vector4 plane_model, const SharedNoiseModel& noiseModel)
+    : NoiseModelFactor1<Point3>(noiseModel, key), plane_(plane_model){
+        H_ = plane_model.head<3>();
     }
 
   gtsam::Vector evaluateError(const Point3& bLbs, boost::optional<gtsam::Matrix&> H = boost::none) const override {
@@ -24,6 +21,6 @@ public:
       *H = H_; // Jacobian in constant
     }
 
-    return Vector1(normalization_factor_*(plane_[0]*bLbs[0] + plane_[1]*bLbs[1] + plane_[2]*bLbs[2] + plane_[3]));
+    return Vector1(plane_[0]*bLbs[0] + plane_[1]*bLbs[1] + plane_[2]*bLbs[2] + plane_[3]);
   }
 };

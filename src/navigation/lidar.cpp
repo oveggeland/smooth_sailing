@@ -28,9 +28,21 @@ Pose3 readExt(const std::string& filename){
 
 
 LidarHandle::LidarHandle(const YAML::Node &config){
-    cout << "Initialize LiDAR handle" << endl;
-
     bTl_ = readExt("/home/oskar/smooth_sailing/src/smooth_sailing/cfg/calib/ext_right.yaml");
+
+    measurement_interval_ = config["lidar_measurement_interval"].as<double>();
+    measurement_sigma_ =  config["lidar_measurement_sigma"].as<double>();
+    min_x_distance_ = config["lidar_measurement_min_x"].as<double>();
+    min_inlier_count_ = config["lidar_measurement_min_inliers"].as<int>();
+
+
+    double ransac_threshold_ = config["lidar_measurement_ransac_threshold"].as<double>();
+    double ransac_prob_ = config["lidar_measurement_ransac_prob"].as<double>();
+
+    seg_.setModelType(pcl::SACMODEL_PLANE); // Set the model you want to fit
+    seg_.setMethodType(pcl::SAC_RANSAC);    // Use RANSAC to estimate the plane
+    seg_.setDistanceThreshold(ransac_threshold_);        // Set a distance threshold for points to be considered inliers)
+    seg_.setProbability(ransac_prob_);
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr LidarHandle::msgToCloud(const sensor_msgs::PointCloud2::ConstPtr& msg) {
@@ -48,8 +60,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr LidarHandle::msgToCloud(const sensor_msgs::P
 
     // Iterate over points, transform and filter points with x > 10
     for (const auto& point : cloud->points) {
-        // Filter out points with x <= 10 after transformation
-        if (point.x < 10.0) {
+        if (point.x < min_x_distance_) {
             continue;
         }
 
@@ -71,46 +82,38 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr LidarHandle::msgToCloud(const sensor_msgs::P
     return transformed_cloud;
 }
 
-bool segmentPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, std::vector<float> &plane_coeffs){
-    pcl::SACSegmentation<pcl::PointXYZ> seg;
-    seg.setModelType(pcl::SACMODEL_PLANE); // Set the model you want to fit
-    seg.setMethodType(pcl::SAC_RANSAC);    // Use RANSAC to estimate the plane
-    seg.setDistanceThreshold(1);        // Set a distance threshold for points to be considered inliers)
-    seg.setProbability(0.9);
-
+bool LidarHandle::segmentPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, Vector4 &plane_coeffs){
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 
-    seg.setInputCloud(cloud);
-    seg.segment(*inliers, *coefficients);
+    seg_.setInputCloud(cloud);
+    seg_.segment(*inliers, *coefficients);
 
-    if (inliers->indices.size() < 20) {
-        PCL_ERROR("Could not estimate a planar model for the given dataset.\n");
+    if (inliers->indices.size() < min_inlier_count_) {
         return false;
     }
+    
+    for (int i = 0; i < 4; i++)
+        plane_coeffs[i] = coefficients->values[i];
 
-    plane_coeffs = coefficients->values;
     return true;
 }
 
 boost::shared_ptr<gtsam::NonlinearFactor> LidarHandle::getLeverArmFactor(sensor_msgs::PointCloud2::ConstPtr msg, bool &success){
 
     double ts = msg->header.stamp.toSec();
-    if (ts - t_last_update_ < 5){
+    if (ts - t_last_update_ < measurement_interval_){
         return nullptr;
     }
-    // TODO
-    cout << "Lidar based lever arm factor added" << endl;
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud = msgToCloud(msg);
-    std::vector<float> plane_coeffs;
+    Vector4 plane_coeffs;
     if (segmentPlane(cloud, plane_coeffs)){
-        // Success!
-        cout << "Plane model: " << plane_coeffs[0] << " " << plane_coeffs[1] << " " << plane_coeffs[2] << " " << plane_coeffs[3] << endl;
+        cout << "Plane model: " << plane_coeffs.transpose() << endl;
 
         success=true;
         t_last_update_ = ts;
-        return boost::make_shared<LeverArmFactor>(L(0), (double)plane_coeffs[0], (double)plane_coeffs[1], (double)plane_coeffs[2], (double)plane_coeffs[3], noiseModel::Isotropic::Sigma(1, 5));
+        return boost::make_shared<LeverArmFactor>(L(0), plane_coeffs, noiseModel::Isotropic::Sigma(1, measurement_sigma_));
     };
 
     return nullptr;
