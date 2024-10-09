@@ -3,6 +3,7 @@
 
 #include "smooth_sailing/gnss.h"
 #include "smooth_sailing/imu.h"
+#include "smooth_sailing/lidar.h"
 #include "smooth_sailing/altitudeFactor.h"
 #include "smooth_sailing/vectorNormFactor.h"
 #include "smooth_sailing/angleNormFactor.h"
@@ -30,6 +31,7 @@ class IceNav{
         // Sensor specific entry points
         void newImuMsg(p_imu_msg msg);
         void newGNSSMsg(p_gnss_msg msg);
+        void newLidarMsg(sensor_msgs::PointCloud2::ConstPtr msg);
 
         // Write
         void finish(const std::string& outdir);
@@ -62,6 +64,7 @@ class IceNav{
         ///// Sensors /////
         IMUHandle imu_handle_;
         GNSSHandle gnss_handle_;
+        LidarHandle lidar_handle_;
 
 
         ///// Altitude constraints /////

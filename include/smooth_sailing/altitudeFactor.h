@@ -86,7 +86,7 @@ public:
         : NoiseModelFactor2<Pose3, Point3>(noiseModel, poseKey, leverKey) {}
 
     // Evaluate function
-    virtual Vector evaluateError(const Pose3& pose, const Point3& bLbs, boost::optional<Matrix&> H1, boost::optional<Matrix&> H2, boost::optional<Matrix&> H3) const override {
+    virtual Vector evaluateError(const Pose3& pose, const Point3& bLbs, boost::optional<Matrix&> H1, boost::optional<Matrix&> H2) const override {
         
         // Predicted altitude from lever arm and rotation
         Point3 wLws = pose.transformFrom(bLbs, H1, H2);

@@ -4,6 +4,7 @@
 IceNav::IceNav(const YAML::Node& config): config_(config){
     imu_handle_ = IMUHandle(config_);
     gnss_handle_ = GNSSHandle(config_);
+    lidar_handle_ = LidarHandle(config_);
 
     virtual_height_interval_ = config_["virtual_height_interval"].as<double>();
     virtual_height_sigma_ = config_["virtual_height_sigma"].as<double>();
@@ -63,6 +64,15 @@ void IceNav::newGNSSMsg(p_gnss_msg msg){
     gnss_seq_++;
 }
 
+void IceNav::newLidarMsg(sensor_msgs::PointCloud2::ConstPtr msg){
+    if (!is_init_)
+        return;
+
+    bool success=false;
+    auto lidarFactor = lidar_handle_.getLeverArmFactor(msg, success);
+    if (success)
+        graph_.add(lidarFactor);
+}
 
 
 void IceNav::predictAndUpdate(){
@@ -95,7 +105,7 @@ void IceNav::newAltitudeConstraint(double ts){
     }
     else if (useLeveredHeight_){ // Levered arm compensation
         cout << "Add levered height factor" << endl;
-        auto altitudeFactor = LeveredAltitudeFactor(X(correction_count_), L(0), Z(correction_count_), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
+        auto altitudeFactor = LeveredAltitudeFactor(X(correction_count_), L(0), noiseModel::Isotropic::Sigma(1, virtual_height_sigma_));
         graph_.add(altitudeFactor);
     }
     else{ // Vanilla constraint
