@@ -8,18 +8,20 @@ from scipy.interpolate import interp1d
 
 import matplotlib.pyplot as plt
 
+pd.set_option("display.precision", 2)
+
 
 OUTPUT_DIR = "/home/oskar/Desktop/journal1/plots/"
 
 SHIP_PATH = "/home/oskar/smooth_sailing/data/long3/ship.csv"
-LEVER_ARM = np.array([0, 10, -17])
+LEVER_ARM = np.array([0, 11.5, -17])
 SIGMA_L = np.array([2, 2, 2])
 
 SOURCES = {
-    "zero-mean": "/home/oskar/smooth_sailing/data/long3/exp/test_zero/navigation",
-    "levered": "/home/oskar/smooth_sailing/data/long3/exp/test_nolidar/navigation",
-    "levered-lidar": "/home/oskar/smooth_sailing/data/long3/exp/test_lidar/navigation",
-    "eskf": "/home/oskar/icewatch-analysis/GoNorth24_Right/runs/long3/test/navigation"
+    "ESKF": "/home/oskar/icewatch-analysis/GoNorth24_Right/runs/long3/test/navigation",
+    #"Zero-mean": "/home/oskar/smooth_sailing/data/long3/exp/test_zero/navigation",
+    #"Levered": "/home/oskar/smooth_sailing/data/long3/exp/test_nolidar/navigation",
+    "Proposed": "/home/oskar/smooth_sailing/data/long3/exp/test_lidar/navigation"
 }
 
 SHIP_PATH = "/home/oskar/smooth_sailing/data/long3/ship.csv"
@@ -30,84 +32,71 @@ def predict_position_from_ship_data(ship_data, lever_arm):
     
     # Estimate lever arm offset from ship orientation
     xyz_offset = Rot.from_euler('xyz', rpy, degrees=True).as_matrix() @ lever_arm
-    xyz = ship_data[["x", "y", "z"]].to_numpy() + xyz_offset
+    xyz = xyz_offset + ship_data[["x", "y", "z"]].to_numpy()
     
     xyz_sigma = np.sqrt((np.eye(3) - Rot.from_euler('xyz', rpy, degrees=True).as_matrix())**2 @ (SIGMA_L**2))
 
     return xyz, xyz_sigma
 
 
+plt.rcParams['font.size'] = 18
 
-def compare_altitude(ship_data, nav_data, meas_data, labels):
-    colors = ['r', 'g', 'orange', 'pink', 'b']
+def compare_altitude(ship_data, nav_data, labels):
+    colors = ['r', 'g', 'b', 'magenta', 'orange']
     
     xyz_pred, xyz_pred_sigma = predict_position_from_ship_data(ship_data, LEVER_ARM)
     z_pred = xyz_pred[:, 2]
     z_pred_sigma = xyz_pred_sigma[:, 2]
     
-    
-    # Create subplots for different graphs
-    fig, axs = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
-    ax0, ax1, ax2, ax3 = axs.flatten()  # Axes are (absolute altitude, relative altitude, relative measurements, relative error)
-        
-    # Absolute altitude
-    ax0.plot(ship_data["ts"].values, z_pred, label="Ship prediction", c=colors[0])
-    
-    for i, nav in enumerate(nav_data):
-        ax0.plot(nav["ts"].values, nav["z"].values, label=labels[i], c=colors[i+1])
-    #plt.legend()
-    
-    # Relative altitude
+    ts = ship_data["ts"].values - ship_data["ts"].values[0] 
     z_pred_norm = z_pred - z_pred.mean()
-    ax1.plot(ship_data["ts"].values, z_pred_norm, label="Ship prediction", c=colors[0])
-    ax1.fill_between(ship_data["ts"], z_pred_norm-3*z_pred_sigma, z_pred_norm+3*z_pred_sigma, alpha=0.5, color=colors[0])
     
-    for i, nav in enumerate(nav_data):
-        ax1.plot(nav["ts"].values, nav["z"].values - nav["z"].values.mean(), label=labels[i], c=colors[i+1])
-    ax1.legend()
-    
-    # Relative measurements
-    ax2.plot(ship_data["ts"].values, z_pred_norm, label="Ship prediction", c=colors[0])
-    
-    for i, meas in enumerate(meas_data):
-        ax2.scatter(meas["ts"].values, meas["altitude"].values.mean()-meas["altitude"].values, marker='x', c=colors[i+1])
-    
-    # Relative errors
-    ax3.fill_between(ship_data["ts"], -3*z_pred_sigma, +3*z_pred_sigma, alpha=0.1, color=colors[0])
-    
-    for i, nav in enumerate(nav_data):
-        error = z_pred_norm - (nav["z"].values - nav["z"].values.mean())
-        ax3.plot(nav["ts"].values, error, label=labels[i], c=colors[i+1])
+    plt.figure("Single approach", figsize=(15, 6))
+    # Ship stuff
+    plt.plot(ts, z_pred_norm, label="Ship prediction", c=colors[0], linewidth=5, zorder=2)
+    plt.fill_between(ts, z_pred_norm-3*z_pred_sigma, z_pred_norm+3*z_pred_sigma, alpha=0.3, color=colors[0], zorder=1, label="Confidence interval")
 
+    for i, nav in enumerate(nav_data):
+        plt.scatter(ts, nav["z"].values - nav["z"].values.mean(), label=labels[i], marker='x', s=50, c=colors[i+1], zorder=3)
+        
+    plt.legend(ncols=2)
+    plt.ylabel("Relative altitude [m]")
+    plt.xlabel("Time [s]")
+    plt.axhline(0, linestyle="dashed", c='black')
+
+    plt.xlim(400, 600)
     plt.tight_layout()
     plt.savefig(os.path.join(OUTPUT_DIR, "altitude_compared.png"))
+    plt.savefig(os.path.join(OUTPUT_DIR, "altitude_compared.pdf"))
     
     
-
     # Now we can do some stats
-    z0, rmse, corr, inliers = [], [], [], []
+    z0, z_sigma, rmse, corr, inliers = [], [], [], [], []
     for i, nav in enumerate(nav_data):
         z = nav["z"].values
         z_mean = z.mean()
         z_norm = z - z_mean
         
         z0.append(z_mean)
-        rmse.append(np.sqrt(np.mean((z_norm - z_pred_norm)**2)))
+        z_sigma.append(z.std())
+        rmse.append(100*np.sqrt(np.mean((z_norm - z_pred_norm)**2)))
         corr.append(np.corrcoef(z_norm, z_pred_norm)[0, 1])
         
         inlier_count = np.sum(abs(z_norm - z_pred_norm) < 3*z_pred_sigma)
-        inliers.append(inlier_count / z_norm.size)
+        inliers.append(100*inlier_count / z_norm.size)
     
-    stats = np.vstack((labels, z0, rmse, corr, inliers)).T
+    stats = np.vstack((labels, z0, z_sigma, rmse, corr, inliers)).T
     
-    df = pd.DataFrame(stats, columns=["label", "z0", "RMSE", "Correlation", "Inliers"])
-    df.to_csv(os.path.join(OUTPUT_DIR, "stats.csv"), index=False)
-
+    df = pd.DataFrame(stats, columns=["label", "z0", "z_sigma", "RMSE", "Correlation", "Inliers"])
+    df.to_csv(os.path.join(OUTPUT_DIR, "stats_nav.csv"), index=False, float_format='%.2f')
+    
+    print("Ship mean and std: ", z_pred.mean(), z_pred.std())
+    
+    print("Estimate:")
     print(df.head())
     
     plt.show()
 
-    
     
     
 
@@ -167,6 +156,7 @@ if __name__ == "__main__":
         nav_data.append(pd.read_csv(os.path.join(exp, "nav.csv")))
         meas_data.append(pd.read_csv(os.path.join(exp, "height.csv")))
         
+    meas_data[0]["altitude"] *= (-1)
         
     ship_data, nav_data, meas_data = align_data(ship_data, nav_data, meas_data)
     
