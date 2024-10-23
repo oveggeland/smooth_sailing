@@ -29,6 +29,10 @@ Point2 GNSSHandle::getMeasurement(p_gnss_msg msg){
     input_coords = proj_coord(msg->latitude, msg->longitude, 0, 0);
     output_coords = proj_trans(P, PJ_FWD, input_coords);
 
+    if (x0_ == 0 && y0_ == 0){
+        x0_ = output_coords.xy.x;
+        y0_ = output_coords.xy.y;
+    }
 
     GnssMeasurement m {
         msg->header.stamp.toSec(),
@@ -37,7 +41,7 @@ Point2 GNSSHandle::getMeasurement(p_gnss_msg msg){
     };
     measurements_.push_back(m);
     
-    return Point2(output_coords.xy.y, output_coords.xy.x);
+    return Point2(output_coords.xy.y - y0_, output_coords.xy.x - x0_);
 }
 
 
