@@ -25,10 +25,10 @@ COLORS = ['r', 'b', 'g', 'c']
 
 X0 = np.array([2688743.212375814, 20489795.43575031, 0])
 
-EXP_LABELS = ["Proposed", "ESKF"]
+EXP_LABELS = ["Proposed", "ESKF [10]"]
 SOURCES = [
-    "/home/oskar/smooth_sailing/data/long3/exp/journal/navigation",
-    "/home/oskar/icewatch-analysis/GoNorth24_Right/runs/long3/test/navigation"
+    "/home/oskar/smooth_sailing/data/long3/exp/journal1/navigation",
+    "/home/oskar/icewatch-analysis/GoNorth24_Right/runs/long3/test/navigation",
 ]
 SHIP_PATH = "/home/oskar/smooth_sailing/data/long3/ship.csv"
 
@@ -202,7 +202,7 @@ def estimate_alignment(ship_poses, system_poses):
 
 
 MODE_LABELS = ["North [m]", "East [m]", "Down [m]", "Roll [deg]", "Pitch [deg]", "Yaw [deg]"]
-def compare_estimates(ts, pred, nav, state_idx, relative=False, crop=(0, -1), fname=""):
+def compare_estimates(ts, pred, nav, state_idx, relative=False, crop=(0, -1), vlines=None, fname=""):
     ts = ts[crop[0]:crop[1]]
     pred = pred[crop[0]:crop[1]]
     nav = nav[:, crop[0]:crop[1]]
@@ -229,26 +229,43 @@ def compare_estimates(ts, pred, nav, state_idx, relative=False, crop=(0, -1), fn
 
     for ax, idx in zip(axes, state_idx):
         # First plot prediction
-        ax.plot(ts, xyzrpy[0, :, idx], c=COLORS[0], linewidth=5, zorder=0, label="Ship prediction")
+        ax.plot(ts, xyzrpy[0, :, idx], c=COLORS[0], linewidth=5, zorder=1, label="Reference")
         
         for j in range(n_exp):
-            ax.plot(ts, xyzrpy[1+j, :, idx], c=COLORS[j+1], zorder=1, label=EXP_LABELS[j])
+            ax.plot(ts, xyzrpy[1+j, :, idx], c=COLORS[j+1], zorder=2, label=EXP_LABELS[j])
         
         
         ax.yaxis.tick_right()
-        ax.set_ylabel(MODE_LABELS[idx], rotation=45, ha='right', va='bottom')
+        ax.set_ylabel(MODE_LABELS[idx])#, rotation=45, ha='right', va='bottom')
+        ax.set_facecolor('none')
         
     axes[0].legend(ncols=3)
     axes[-1].set_xlabel("Time [s]")
     
     plt.tight_layout()
+    if vlines:
+        x0 = fig.transFigure.inverted().transform(axes[-1].transData.transform((vlines[0], axes[-1].get_ylim()[0])))
+        x1 = fig.transFigure.inverted().transform(axes[0].transData.transform((vlines[1], axes[0].get_ylim()[1])))
+        
+        rect = plt.Rectangle(
+            x0,  # Bottom-left corner: x_min in figure coordinates and y_bottom in axes coordinates
+            x1[0] - x0[0],  # Width of the rectangle (difference in figure coordinates)
+            x1[1] - x0[1],  # Height of the rectangle (difference in axes coordinates)
+            color='black',  # Color of the background fill
+            alpha=0.3,  # Transparency of the fill
+            transform=fig.transFigure,  # Use figure coordinates for the rectangle
+            zorder=-1,  # Ensure the rectangle stays behind the plot elements
+        )
+
+        # Add the rectangle to the figure
+        fig.patches.append(rect)
+    
     if fname:
         plt.savefig(os.path.join(OUTPUT_DIR, fname+".pdf"))
         
-        
+            
     # Plot errors
     state_errors = xyzrpy[0] - xyzrpy[1:]
-    print(state_errors.shape)
     fig, axes = plt.subplots(state_idx.size, 1, figsize=(10,  2*state_idx.size), sharex=True)
 
     for ax, idx in zip(axes, state_idx):
@@ -256,27 +273,85 @@ def compare_estimates(ts, pred, nav, state_idx, relative=False, crop=(0, -1), fn
             ax.plot(ts, state_errors[j, :, idx], c=COLORS[j+1], zorder=1, label=EXP_LABELS[j])
         
         ax.yaxis.tick_right()
-        ax.set_ylabel(MODE_LABELS[idx], rotation=45, ha='right', va='bottom')
+        ax.set_ylabel(MODE_LABELS[idx])#, rotation=45, ha='right', va='bottom')
+        ax.set_facecolor('none')
+        ax.axhline(0, color='gray', alpha=0.5)
         
     axes[0].legend(ncols=3)
     axes[-1].set_xlabel("Time [s]")
     
     plt.tight_layout()
+    if vlines:
+        x0 = fig.transFigure.inverted().transform(axes[-1].transData.transform((vlines[0], axes[-1].get_ylim()[0])))
+        x1 = fig.transFigure.inverted().transform(axes[0].transData.transform((vlines[1], axes[0].get_ylim()[1])))
+        
+        rect = plt.Rectangle(
+            x0,  # Bottom-left corner: x_min in figure coordinates and y_bottom in axes coordinates
+            x1[0] - x0[0],  # Width of the rectangle (difference in figure coordinates)
+            x1[1] - x0[1],  # Height of the rectangle (difference in axes coordinates)
+            color='black',  # Color of the background fill
+            alpha=0.3,  # Transparency of the fill
+            transform=fig.transFigure,  # Use figure coordinates for the rectangle
+            zorder=-1,  # Ensure the rectangle stays behind the plot elements
+        )
+
+        # Add the rectangle to the figure
+        fig.patches.append(rect)
     if fname:
         plt.savefig(os.path.join(OUTPUT_DIR, fname+"_errors.pdf"))
         
         
 
     # Stats from state errors
-        
+    print("Errors")
+    print(state_errors.shape)
     
+    me = np.mean(state_errors, axis=1)
+    rmse = np.sqrt(np.mean(state_errors**2, axis=1))    
+    sde = np.std(state_errors, axis=1)
+    
+    pcc = np.zeros((2, 6))
+    
+    for i in range(6):
+        pcc[0, i] = np.corrcoef(xyzrpy[0, :, i], xyzrpy[1, :, i])[0, 1]
+        pcc[1, i] = np.corrcoef(xyzrpy[0, :, i], xyzrpy[2, :, i])[0, 1]
+    
+    
+    
+    for i in range(6):
+        print(f"{me[0, i]:.2f} / {me[1, i]:.2f} &", end=" ")
+ 
+    print()
+    
+
+    for i in range(6):
+        print(f"{rmse[0, i]:.2f} / {rmse[1, i]:.2f} &", end=" ")
+ 
+    print()
+    
+    for i in range(6):
+        print(f"{sde[0, i]:.2f} / {sde[1, i]:.2f} &", end=" ")
+
+    print()
+    
+    for i in range(6):
+        print(f"{pcc[0, i]:.2f} / {pcc[1, i]:.2f} &", end=" ")
+        
+    print()
+
         
 import matplotlib
-matplotlib.rcParams.update({'font.size': 16})
+matplotlib.rcParams.update({'font.size': 18})
 
 if __name__ == "__main__":
     # Extract ship poses
     t_ship, ship_poses = read_poses_from_csv(SHIP_PATH, "heading", degree=True)
+    
+    data = pd.read_csv(SHIP_PATH)
+    speed = data["speed"].values
+    
+    print(np.mean(speed))
+    
     
     # Extract estimated poses
     n_exp = len(SOURCES)
@@ -284,6 +359,12 @@ if __name__ == "__main__":
     nav_poses = []
     for exp in SOURCES:
         ts, poses = read_poses_from_csv(os.path.join(exp, "nav.csv"))
+        
+        # Slice first 1000 seconds
+        # idx = (ts.min() + 1000) < ts
+        # ts = ts[idx]
+        # poses = poses[idx]
+        
         timestamps.append(ts)
         nav_poses.append(poses)
                 
@@ -293,6 +374,7 @@ if __name__ == "__main__":
     
     # Remove planar offset
     ship_poses = planar_offset(ship_poses)
+    #nav_poses[0] = planar_offset(nav_poses[0])
     nav_poses[1] = planar_offset(nav_poses[1])
 
 
@@ -309,9 +391,6 @@ if __name__ == "__main__":
         xyzrpy[i, :3] = T.translation()
         xyzrpy[i, 3:] = T.rotation().rpy()*RAD2DEG
 
-    np.set_printoptions(precision=2, suppress=True)
-    print(xyzrpy)
-    
     
     # Predict from ship data
     T_align = align_poses[-1] # Use interpolated value for alignment in evaluation
@@ -320,8 +399,10 @@ if __name__ == "__main__":
     for i, T_ship in enumerate(ship_poses):
         pred_poses[i] = T_ship.compose(T_align)
     
-    compare_estimates(t_ship, pred_poses, nav_poses, state_idx=np.r_[:6], fname="full_traj")
-    compare_estimates(t_ship, pred_poses, nav_poses, state_idx=np.r_[2:5], fname="arp_traj_rel", crop=(100, 500), relative=True)
+    compare_estimates(t_ship, pred_poses, nav_poses, state_idx=np.r_[:6], vlines=(2150, 2350), fname="full_traj", relative=False)
+    #compare_estimates(t_ship, pred_poses, nav_poses, state_idx=np.r_[2:5], fname="arp_traj_rel", crop=(1300, 1500), relative=True)
+    #compare_estimates(t_ship, pred_poses, nav_poses, state_idx=np.r_[:6], fname="cropped_traj", relative=False, crop=(2150, 2350))
+    #compare_estimates(t_ship, pred_poses, nav_poses, state_idx=np.r_[2:5], fname="arp_traj_rel", crop=(1300, 1500), relative=True)
     
     
     # Here we plot the biases
@@ -340,14 +421,14 @@ if __name__ == "__main__":
     gyro_bias_prop = nav_prop[["bgx", "bgy", "bgz"]].values
     gyro_bias_eskf = nav_eskf[["bgx", "bgy", "bgz"]].values
     
-    fig = plt.figure(figsize=(10, 5))
+    fig = plt.figure(figsize=(12, 5))
     
     gs = gridspec.GridSpec(3, 1, height_ratios=[0.05, 1, 1])  # Adjust width ratios to leave space for legend
 
     # Create subplots (one column, two rows)
     ax_legend = fig.add_subplot(gs[0, 0])
     ax0 = fig.add_subplot(gs[1, 0])  # First subplot
-    ax1 = fig.add_subplot(gs[2, 0], sharex=ax0)  # Second subplot
+    ax1 = fig.add_subplot(gs[2, 0])#, sharex=ax0)  # Second subplot
     
     for i in range(3):
         # plt.axhline(GT[i], c=COLORS[i], linewidth=3, linestyle="dashed")
@@ -359,25 +440,32 @@ if __name__ == "__main__":
     
     ax1.set_xlabel("Time [s]")
     
-    ax0.set_ylabel("Acc bias [m/s^2]", rotation=45, ha='center', va='center', labelpad=60)
-    ax1.set_ylabel("Gyro bias [deg/s]", rotation=45, ha='center', va='center', labelpad=60)
+    #ax0.set_ylabel('this is vertical\ntest', multialignment='center')
+    ax0.set_ylabel("Acc bias\n[m/$s^2$]", rotation=90, ha='center', va='bottom', labelpad=10, multialignment='center')
+    ax1.set_ylabel("Gyro bias\n[rad/s]", rotation=90, ha='center', va='bottom', labelpad=10)
+
     
     ax0.yaxis.tick_right()
     ax1.yaxis.tick_right()
     
-    plt.xlim(5, t_eskf.max())
-    plt.xscale('log')
+    #ax0.set_xlim(5, t_eskf.max())
+    #ax0.set_xscale('log')
+    ax0.set_xticklabels([])
+    #ax1.set_xlim(5, t_eskf.max())
+    #ax1.set_xscale('log')
+
     
-    colors = ['red', 'green', 'blue']
+    #ax1.set_xticks([1, 10, 100, 1000])
+    
     line_styles = ['--', '-']
         
     # Create custom legend entries for each combination of color and line style
     legend_elements = [
         Line2D([0], [0], color='black', lw=2, linestyle='-', label='Proposed'),
-        Line2D([0], [0], color='black', lw=2, linestyle='--', label='ESKF'),
+        Line2D([0], [0], color='black', lw=2, linestyle='--', label='ESKF [10]'),
         Line2D([0], [0], color='red', lw=10, linestyle='-', label='X-axis'),
-        Line2D([0], [0], color='green', lw=10, linestyle='-', label='Y-axis'),
-        Line2D([0], [0], color='blue', lw=10, linestyle='-', label='Z-axis')
+        Line2D([0], [0], color='blue', lw=10, linestyle='-', label='Y-axis'),
+        Line2D([0], [0], color='green', lw=10, linestyle='-', label='Z-axis')
     ]
 
 
@@ -385,7 +473,8 @@ if __name__ == "__main__":
     ax_legend.set_frame_on(False) 
     ax_legend.set_xticks([])  # Remove x-axis ticks
     ax_legend.set_yticks([])  # Remove y-axis ticks
-    ax_legend.legend(handles=legend_elements, loc='center', ncol=5)#, bbox_to_anchor=(0.5, 0.95))
+    ax_legend.legend(handles=legend_elements, loc='center', ncol=5)
+    
 
     plt.tight_layout()
     

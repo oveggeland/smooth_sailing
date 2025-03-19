@@ -35,6 +35,13 @@ class FovGenerator:
         self.save_path = save_path
         if not os.path.isdir(save_path):
             os.makedirs(save_path)
+            
+        self.global_mesh = o3d.geometry.TriangleMesh()
+        
+        
+    def save_global(self):
+        self.global_mesh.simplify_vertex_clustering(0.5)
+        o3d.io.write_triangle_mesh(os.path.join(self.save_path, f"global.ply"), self.global_mesh)
 
     def new_mesh(self, T, ts):
         height = T[2, 3]
@@ -63,14 +70,16 @@ class FovGenerator:
         wPwp = wPlp + T[:3, 3].reshape((3, 1))
         wPwp[2] = 0
 
+        
         # Create and save mesh
         vertices = wPwp.T
         triangles = np.array([
-            np.zeros(vertices.shape[0]-3),
-            np.arange(1, vertices.shape[0]-2),
-            np.arange(2, vertices.shape[0]-1)
+            np.zeros(vertices.shape[0]-2),
+            np.arange(1, vertices.shape[0]-1),
+            np.arange(2, vertices.shape[0])
         
         ]).T
+        
 
         fov_mesh = o3d.geometry.TriangleMesh(
             o3d.cpu.pybind.utility.Vector3dVector(vertices), 
@@ -78,11 +87,17 @@ class FovGenerator:
 
         o3d.io.write_triangle_mesh(os.path.join(self.save_path, f"{ts:.2f}.ply"), fov_mesh)
 
+        self.global_mesh += fov_mesh
+        
+        if rospy.is_shutdown():
+            exit()
+
 import os
 import rospy 
 import rosbag
 import gtsam
 import pandas as pd
+from image_rendering import CameraHandle
 
 def interpolate_pose3(pose1, pose2, t):
     assert 0 <= t <= 1, "Interpolation factor t must be between 0 and 1"
@@ -133,6 +148,16 @@ def readExt(ext_yaml, label):
             ext = yaml.safe_load(ext_yaml)
             return gtsam.Pose3(np.array(ext[label]))
 
+def find_in_yaml(file, key, default=None):
+    with open(file, "r") as yaml_file:
+        content = yaml.safe_load(yaml_file)
+        
+        try:
+            return content[key]
+        except:
+            print(file, "does not contain key", key)
+            return default
+
 if __name__ == "__main__":
     rospy.init_node("fov_generator_node")
     
@@ -142,13 +167,20 @@ if __name__ == "__main__":
     exp_path = os.path.join(ws, "exp", exp)
     
     bag = rosbag.Bag(os.path.join(ws, "cooked.bag"))
-    
     # Using conservative estimates!!
-    z0 = -16.5
-    fov = 70
+    info = rospy.get_param("map_config")
     
-    points = get_lidar_points(fov)
-    fg = FovGenerator(points, 100, os.path.join(exp_path, "fov"))
+    fov = find_in_yaml(info, "lidar_fov")
+    lidar_max_dist = find_in_yaml(info, "lidar_max_dist")
+    camera_max_dist = find_in_yaml(info, "camera_max_dist")
+    
+    lidar_points = get_lidar_points(fov)
+    lidar_fov_generator = FovGenerator(lidar_points, lidar_max_dist, os.path.join(exp_path, "lidar_fov"))
+    
+    cam = CameraHandle(rospy.get_param("int_file"))
+    camera_points = get_camera_points(cam)
+    cam_fov_generator = FovGenerator(camera_points, camera_max_dist, os.path.join(exp_path, "camera_fov"))
+    
     poseQuery = poseExtractor(os.path.join(exp_path, "navigation", "nav.csv"))
     
     ext = rospy.get_param("ext_file")
@@ -157,16 +189,20 @@ if __name__ == "__main__":
     bTl = bTc.compose(cTl)
     
     # Iterate through all LiDAR frame poses and generate a fov mask
-    for (_, msg, _) in bag.read_messages(topics=["/livox_lidar_node/pointcloud2"]):
+    for (topic, msg, _) in bag.read_messages(topics=["/livox_lidar_node/pointcloud2", "/blackfly_node/image"]):
+        #1725811901.5753195 1725812101.5755522
         ts = msg.header.stamp.to_sec()
-        
         
         wTb = poseQuery.get_pose(ts)
         if wTb is None:
             continue
         
-        wTl = wTb.compose(bTl).matrix()
-        wTl[2, 3] = z0
-
-        fg.new_mesh(wTl, ts)
+        if topic == "/livox_lidar_node/pointcloud2":
+            wTl = wTb.compose(bTl).matrix()
+            lidar_fov_generator.new_mesh(wTl, ts)
+        elif topic == "/blackfly_node/image":
+            wTc = wTb.compose(bTc).matrix()
+            cam_fov_generator.new_mesh(wTc, ts)
         
+    lidar_fov_generator.save_global()
+    cam_fov_generator.save_global()

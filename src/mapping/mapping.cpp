@@ -197,13 +197,27 @@ public:
             positions_.push_back(transformed_point.y());
             positions_.push_back(transformed_point.z());
 
-            // Save auxillary attributes (Intensity, distance2, and timestamps)
-            intensities_.push_back(point.intensity);
-            distances_.push_back(point.x*point.x + point.y*point.y + point.z*point.z); // Distance squared, to save computational costs
-            if (use_relative_stamps_)
-                timestamps_.push_back(ts_point - t0_);
-            else
-                timestamps_.push_back(ts_point);
+            // Save auxillary attributes (Intensity, distance2, timestamps and lidar vecs)
+            if (add_intensity_)
+                intensities_.push_back(point.intensity);
+            
+            if (add_distance_)
+                distances_.push_back(point.x*point.x + point.y*point.y + point.z*point.z); // Distance squared, to save computational costs of sqrt
+
+            if (add_lidar_vec_){
+                gtsam::Point3 rotated_point = T.rotation().rotate(gtsam::Point3(point.x, point.y, point.z));
+
+                lidar_x_.push_back(rotated_point.x());
+                lidar_y_.push_back(rotated_point.y());
+                lidar_z_.push_back(rotated_point.z());
+            }
+
+            if (add_timestamp_){
+                if (use_relative_stamps_)
+                    timestamps_.push_back(ts_point - t0_);
+                else
+                    timestamps_.push_back(ts_point);
+            }
         }
     }
 
@@ -212,10 +226,23 @@ public:
         if (!positions_.empty()){
             std::unordered_map<std::string, open3d::core::Tensor> tensor_map;
 
-            tensor_map["positions"] = open3d::core::Tensor(positions_, {(int)positions_.size()/3, 3}, open3d::core::Dtype::Float64);
-            tensor_map["intensities"] = open3d::core::Tensor(intensities_, {(int)intensities_.size(), 1}, open3d::core::Dtype::UInt8);
-            tensor_map["timestamps"] = open3d::core::Tensor(timestamps_, {(int)timestamps_.size(), 1}, open3d::core::Dtype::Float64);
-            tensor_map["distances"] = open3d::core::Tensor(distances_, {(int)distances_.size(), 1}, open3d::core::Dtype::Float32);
+            tensor_map["positions"] = open3d::core::Tensor(positions_, {(int)positions_.size()/3, 3}, open3d::core::Dtype::Float32);
+
+            if (add_intensity_)
+                tensor_map["intensities"] = open3d::core::Tensor(intensities_, {(int)intensities_.size(), 1}, open3d::core::Dtype::UInt8);
+    
+            if (add_timestamp_)
+                tensor_map["timestamps"] = open3d::core::Tensor(timestamps_, {(int)timestamps_.size(), 1}, open3d::core::Dtype::Float64);
+    
+            if (add_distance_)
+                tensor_map["distances"] = open3d::core::Tensor(distances_, {(int)distances_.size(), 1}, open3d::core::Dtype::Float32);
+    
+            if (add_lidar_vec_){
+                tensor_map["lidar_x"] = open3d::core::Tensor(lidar_x_, {(int)lidar_x_.size(), 1}, open3d::core::Dtype::Float32);
+                tensor_map["lidar_y"] = open3d::core::Tensor(lidar_y_, {(int)lidar_y_.size(), 1}, open3d::core::Dtype::Float32);
+                tensor_map["lidar_z"] = open3d::core::Tensor(lidar_z_, {(int)lidar_z_.size(), 1}, open3d::core::Dtype::Float32);
+            }
+
             open3d::t::geometry::PointCloud point_cloud(tensor_map);
 
             // Save the PointCloud to file
@@ -230,6 +257,9 @@ public:
             intensities_.clear();
             timestamps_.clear();
             distances_.clear();
+            lidar_x_.clear();
+            lidar_y_.clear();
+            lidar_z_.clear();
         }
         cloud_cnt_ ++;
     }
@@ -278,6 +308,13 @@ private:
     double min_x_distance_;
     int return_count_;
 
+    // What to include
+    bool add_intensity_ = true;
+    bool add_distance_ = false;
+    bool add_lidar_vec_ = false;
+    bool add_timestamp_ = true;
+    bool down_sample_ = false;
+    double voxel_size_ = 1.0;
 
     std::map<double, Pose3> pose_map_;
 
@@ -288,10 +325,13 @@ private:
 
     double t0_map_ = 0.0;
 
-    vector<_Float64> positions_;
+    vector<_Float32> positions_;
     vector<uint8_t> intensities_;
     vector<_Float64> timestamps_;
     vector<_Float32> distances_;
+    vector<_Float32> lidar_x_;
+    vector<_Float32> lidar_y_;
+    vector<_Float32> lidar_z_;
 };
 
 

@@ -155,7 +155,7 @@ if __name__ == "__main__":
             img = cam.get_undistorted_image(msg, False)
             img = cv.cvtColor(img, cv.COLOR_RGB2BGR) / 255.0
         
-            inlier_mask = abs(ts-t_image) < 0.5
+            inlier_mask = abs(ts-t_image) < 3
             inlier_idx = np.where(inlier_mask)[0]
         
             pcd_inliers = pcd.select_by_mask(inlier_mask)

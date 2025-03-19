@@ -24,7 +24,7 @@ gnss_crs_target: "EPSG:6052"
 
 # Virtual altitude constraints
 virtual_altitude_sigma: 0.1
-virtual_altitude_levered: false
+virtual_altitude_levered: true
 
 # LiDAR (used to estimate lever arm in virtual altitude)
 lidar_measure_lever_arm: true

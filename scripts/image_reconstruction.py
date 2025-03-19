@@ -14,7 +14,7 @@ import os
 import signal
 import rosbag
 
-from t_pointcloud import t_color_by_channel, t_color_enhance_by_channel, t_get_channel, t_color_relative_topo
+from t_pointcloud import t_color_by_channel, t_get_channel
 
 import pandas as pd
 import open3d as o3d
@@ -82,43 +82,52 @@ if __name__ == "__main__":
     ws = rospy.get_param("/ws")
     exp = rospy.get_param("/exp")
     
-    # Make output path
-    image_path = os.path.join(ws, "exp", exp, "images")
-    subfolders = ["topo", "binary", "optical", "overlay"]
-    for folder in subfolders:
-        if not os.path.exists(os.path.join(image_path, folder)):
-            os.makedirs(os.path.join(image_path, folder))
-
-
-    # Read fov.meshes
-    fov_masks = {}
-    fov_path = os.path.join(ws, "exp", exp, "fov")
-    for file in sorted(os.listdir(fov_path)):
-        mesh = o3d.io.read_triangle_mesh(os.path.join(fov_path, file))
-        
-        ts = float(file[:-4])
-        fov_masks[ts] = mesh
-
-    # Read clouds
-    clouds = {}
-    cloud_path = os.path.join(ws, "exp", exp, "processed_clouds")
-    for cloud_file in sorted(os.listdir(cloud_path)):
-        pcd = o3d.t.io.read_point_cloud(os.path.join(cloud_path, cloud_file))
-        #pcd = t_normalized_topo_color(pcd)
-        #t_color_by_channel(pcd, "intensities", cv.COLORMAP_HOT, 1, 99)
-        #t_color_enhance_by_channel(pcd, "intensities", p_upper=95) # Everything with less than 30p intensity should have reduced visibility
-        t_color_relative_topo(pcd)
-
-        ts = t_get_channel(pcd, "timestamps")
-        clouds[ts.min()] = pcd
-    
-        
+            
     # Info file
     info = rospy.get_param("map_config")
     
     dt = readYaml(info, "reconstruction_dt")
     interval = readYaml(info, "reconstruction_interval")
     
+    # Make output path
+    image_path = os.path.join(ws, "exp", exp, "images", str(dt))
+    subfolders = ["rgb", "intensity", "topo", "binary", "optical", "overlay", "fov", "compare"]
+    for folder in subfolders:
+        os.makedirs(os.path.join(image_path, folder), exist_ok=True)
+
+
+    # Read fov.meshes
+    print("Reading fov meshes")
+    fov_masks = {}
+    fov_path = os.path.join(ws, "exp", exp, "lidar_fov")
+    if dt > 0:
+        for file in sorted(os.listdir(fov_path)):
+            mesh = o3d.io.read_triangle_mesh(os.path.join(fov_path, file))
+
+            if file[:-4] != "global":
+                ts = float(file[:-4])
+                fov_masks[ts] = mesh
+    else:
+        fov_masks[0] = o3d.io.read_triangle_mesh(os.path.join(fov_path, "global.ply"))
+
+    # Read clouds
+    rgb_clouds = {}
+    intensity_clouds = {}
+    topo_clouds = {}
+    cloud_path = os.path.join(ws, "exp", exp, "raw_clouds")
+
+    for cloud_file in sorted(os.listdir(cloud_path)):      
+        print("Read cloud", cloud_file)
+        
+        pcd_topo = o3d.t.io.read_point_cloud(os.path.join(cloud_path, cloud_file))
+        t_color_by_channel(pcd_topo, "topo", cv.COLORMAP_VIRIDIS, -1, 3)
+        
+        pcd_intensity = pcd_topo.clone()
+        t_color_by_channel(pcd_intensity, "intensities", cv.COLORMAP_COOL, 0, 50)
+        
+        ts = t_get_channel(pcd_topo, "timestamps")
+        intensity_clouds[ts.min()] = pcd_intensity
+        topo_clouds[ts.min()] = pcd_topo        
     # Read bag
     bag = rosbag.Bag(os.path.join(ws, "cooked.bag"))
     
@@ -131,55 +140,73 @@ if __name__ == "__main__":
     
     # Camera object
     cam = CameraHandle(rospy.get_param("int_file"))
-    image_renderer = ImageRenderer(cam, clouds, info)
+    
+    # render objects
+    intensity_renderer = ImageRenderer(cam, intensity_clouds, info)
+    topo_renderer = ImageRenderer(cam, topo_clouds, info)
     fov_renderer = FovRenderer(cam, fov_masks, info)
     
     
     # Iterate over bag
     for seq, (_, msg, _) in enumerate(bag.read_messages(topics=["/blackfly_node/image"], 
-                                                        end_time=rospy.Time(bag.get_start_time() + rospy.get_param("max_time_interval")))):
+                                                        start_time=rospy.Time(bag.get_start_time() + readYaml(info, "t0_rel")),
+                                                        end_time=rospy.Time(bag.get_start_time() + readYaml(info, "t1_rel")))):
         if rospy.is_shutdown():
+            print("ROS IS SHUTDOWN")
             break
         
-        if seq % interval != 0:
+        if seq < 400 or seq % interval != 0:
             continue # Skip image
 
         
         ts = msg.header.stamp.to_sec()
+        label = f"{ts:.1f}"
         Twb = pose_extractor.get_pose(ts)
         if Twb is None:
             continue # No pose available
         
         # Update clouds to current sliding window
-        image_renderer.update_pointcloud(ts, dt) 
+        intensity_renderer.update_pointcloud(ts, dt) 
+        topo_renderer.update_pointcloud(ts, dt)
         fov_renderer.update_mesh(ts, dt)
 
         Twc = Twb.compose(Tbc)
-        img_topo = image_renderer.render_image(Twc.inverse().matrix()) # Topography image 
-        img_topo = np.expand_dims(cv.cvtColor(img_topo, cv.COLOR_BGR2GRAY), 2)
-        img_binary = np.where(img_topo, 255, 0).astype(np.uint8)
+        Tcw = Twc.inverse().matrix()
+        
+        # Render reconstructed images and fov mask
+        img_intensity = intensity_renderer.render_image(Tcw)
+        img_topo = topo_renderer.render_image(Tcw)
+        img_fov = fov_renderer.render_image(Tcw)         
+
+        # Apply mask to reconstructed images
+        where = ~np.any(img_topo, axis=2)
+        img_intensity[where] = img_fov[where]
+        img_topo[where] = img_fov[where]
 
         img_optical = cam.get_undistorted_image(msg, True)
         
-        R = Twc.rotation()
-        t = Twc.translation()
-        t[2] = -16.5
-        Twc = gtsam.Pose3(R, t)
+        # if readYaml(info, "reconstruction_do_overlay"):
+        #     img_overlay = img_optical.copy()
+        #     alpha = 0.3
+        #     img_overlay[img_bin] = (1-alpha)*img_overlay[img_bin] + alpha*np.array([0, 255, 0])# = np.where(where, img_topo, img_optical) # Topo values where relevant
+        #     img_overlay = np.where(img_fov, img_overlay, 0.5*img_overlay) # Highlight fov mask
+        #     cv.imwrite(os.path.join(image_path, "overlay", f"frame_{label}.png"), img_overlay)
+            
+        #img_optical = np.where(img_fov, img_optical, 0)
         
-        img_fov = fov_renderer.render_image(Twc.inverse().matrix()) 
-        
-        cv.imshow("TEST", img_fov)
-        k = cv.waitKey(1)
-        if k == ord('q'):
-            break
-        
+        #img_compare = np.vstack((
+        #    np.hstack((img_optical, img_rgb)),
+        #    np.hstack((img_topo, img_intensity))
+        #))
+            
         # Save to file
-        cv.imwrite(os.path.join(image_path, "topo", f"frame_{seq:04d}.png"), img_topo)
-        cv.imwrite(os.path.join(image_path, "binary", f"frame_{seq:04d}.png"), img_binary)
-        cv.imwrite(os.path.join(image_path, "optical", f"frame_{seq:04d}.png"), img_optical)
-        cv.imwrite(os.path.join(image_path, "fov", f"frame_{seq:04d}.png"), img_fov)
+        #cv.imwrite(os.path.join(image_path, "rgb", f"frame_{label}.png"), img_rgb)
+        cv.imwrite(os.path.join(image_path, "intensity", f"frame_{label}.png"), img_intensity)
+        cv.imwrite(os.path.join(image_path, "topo", f"frame_{label}.png"), img_topo)
+        #cv.imwrite(os.path.join(image_path, "binary", f"frame_{label}.png"), img_binary)
+        cv.imwrite(os.path.join(image_path, "optical", f"frame_{label}.png"), img_optical)
+        #cv.imwrite(os.path.join(image_path, "fov", f"frame_{label}.png"), img_fov)
+        #cv.imwrite(os.path.join(image_path, "compare", f"frame_{label}.png"), img_compare)
         
-        if readYaml(info, "reconstruction_do_overlay"):
-            img_overlay = np.where(img_topo, img_topo, img_optical) # Topo values where relevant
-            img_overlay = np.where(img_fov, img_overlay, 0.5*img_overlay) # Highlight fov mask
-            cv.imwrite(os.path.join(image_path, "overlay", f"frame_{seq:04d}.png"), img_overlay)
+        if rospy.is_shutdown():
+            break

@@ -60,53 +60,20 @@ def t_normalize_intensity_from_lidar_depth(pcd):
     pcd_cpy.point.intensities = o3d.core.Tensor(i_corrected.reshape((-1, 1)), dtype=o3d.core.Dtype.UInt16)
     return pcd_cpy
 
-def t_channel_to_color(pcd, channel, colormap, p_lower=0, p_upper=100):
-    vals = t_get_channel(pcd, channel)
-    normalized = np.ones(vals.size, dtype=np.uint8)*126 # Default color in case vals are all the same value
-    if vals.max() - vals.min():
-        normalized = np.clip(255 * (vals - np.percentile(vals, p_lower)) /
-                          (np.percentile(vals, p_upper) - np.percentile(vals, p_lower)), 
-                          a_min=0, a_max=255).astype(np.uint8)
 
-    c = cv.cvtColor(cv.applyColorMap(normalized, colormap), cv.COLOR_BGR2RGB).squeeze() / 255
-    return o3d.utility.Vector3dVector(c)
+import matplotlib.pyplot as plt
 
+def t_color_by_channel(pcd, channel, colormap=cv.COLORMAP_VIRIDIS, v_min=0.0, v_max=1.0):
+    vals = t_get_channel(pcd, channel).astype(float)
+    
+    normalized = np.clip(255*(vals - v_min) / (v_max - v_min), 0.0, 255.0).astype(np.uint8)
 
-def t_color_by_channel(pcd, channel, colormap=cv.COLORMAP_VIRIDIS, p_lower=2, p_upper=98):
-    vals = t_get_channel(pcd, channel)
-    v_min = np.percentile(vals, p_lower)
-    v_max = np.percentile(vals, p_upper)
+    # Ensure correct shape before applying colormap
+    colors = cv.applyColorMap(normalized, colormap).squeeze().astype(np.float32) / 255.0
     
-    normalized = np.clip(255*(vals - v_min) / (v_max - v_min), 0, 255).astype(np.uint8)
-    color_map = cv.applyColorMap(normalized, colormap).squeeze()
-    
-    # Set the colors to the point cloud as Float32
-    pcd.point['colors'] = o3d.core.Tensor(color_map[:, :3].astype(np.float32) / 255.0, dtype=o3d.core.Dtype.Float32)
-    
-    # Use the normalized channel values to set the pointcloud colors
+    # Assign color to point cloud
+    pcd.point["colors"] = o3d.core.Tensor(colors, dtype=o3d.core.Dtype.Float32)
 
-def t_color_relative_topo(pcd, lb = -1, ub = 3):
-    vals = t_get_channel(pcd, "topo")
-    vals = vals - vals.mean()
-    vals = np.clip(vals, lb, ub)
-    vals = (vals - lb) / (ub - lb)
-    colors = np.stack((vals, vals, vals), axis=1).astype(np.float32)
-    
-    pcd.point['colors'] = o3d.core.Tensor(colors, dtype=o3d.core.Dtype.Float32)
-    
-
-def t_color_enhance_by_channel(pcd, channel, p_lower=0, p_upper=100):
-    # Get the values of the specified channel
-    vals = t_get_channel(pcd, channel)
-    
-    # Calculate the percentiles for clipping
-    v_min = np.percentile(vals, p_lower)
-    v_max = np.percentile(vals, p_upper)
-    
-    # Normalize the channel values between 0 and 1
-    normalized = np.clip(255*(vals - v_min) / (v_max - v_min), 0, 1).astype(np.float32)
-    
-    pcd.point['colors'] = pcd.point['colors']*normalized
 
 
 def t_get_channel(pcd, channel):

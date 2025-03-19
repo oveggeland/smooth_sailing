@@ -110,8 +110,9 @@ class ImageRenderer:
             # Is cloud in past?
             if t_query + dt < t0 :
                 continue
-
-            pcd = t_filter(pcd, channel="timestamps", min=t_query-dt, max=t_query+dt)
+            
+            if dt > 0:
+                pcd = t_filter(pcd, channel="timestamps", min=t_query-dt, max=t_query+dt)
             pcd_window += pcd.to_legacy()
                 
         self.vis.clear_geometries()
@@ -160,7 +161,7 @@ class FovRenderer:
         # Self.fovs contain a key (t0) and a pcd
         for ts, mesh in self.fovs.items():
             # Is mesh outside of interval?
-            if abs(t_query - ts) > dt:
+            if dt > 0 and abs(t_query - ts) > dt:
                 continue
             
             self.vis.add_geometry(mesh)
